@@ -1,9 +1,10 @@
 # Phase 0 — Product Specification
 
-Status: DRAFT — core architecture decisions confirmed (see §O); remaining
-open questions (region/compliance, fleet data, confidentiality tier, domain,
-budget/timeline) still need owner input before Phase 1 fully locks.
-Repository state at time of writing: empty (greenfield). No application code exists yet.
+Status: **LOCKED** — all §O blocking questions have owner answers (budget/
+timeline was the one item never treated as launch-blocking; see §O). Phase 1
+(database schema/migrations) may proceed on this document.
+Repository state at time of writing: `apps/web` scaffold only (see
+`apps/web/`) — no product/domain code yet.
 
 **Confirmed decisions (2026-09-08):**
 - Brand/operating name: **Midway Mover** (previously drafted as "Midvan
@@ -14,6 +15,11 @@ Repository state at time of writing: empty (greenfield). No application code exi
   for staff/admin.
 - Payments: **Stripe**.
 - Hosting: **Vercel + managed Postgres (Neon)**.
+- Service area: **multi-state US at launch** (specific states TBD — see §O).
+- Fleet vehicle specs: **placeholder defaults** for `VehicleCapability`,
+  explicitly flagged for owner review before go-live (see §G, §O).
+- Confidentiality: **default-on for every shipment** — there is no
+  non-confidential shipment tier at MVP (see §H–§J, §O).
 
 ---
 
@@ -178,8 +184,24 @@ minutes, single-use, purged after use/expiry.
 Core: `User`, `Organization`, `OrganizationMember`, `CustomerProfile`,
 `DriverProfile`, `Vehicle`, `VehicleCapability`, `Address`, `Contact`.
 
+`VehicleCapability` (payload limits, interior length/width/height, pallet
+capacity, loading-equipment compatibility) is seeded at Phase 1 with
+placeholder figures per vehicle class (§O) and carries a `needsReview`
+flag. The vehicle-matching engine treats `needsReview` rows as usable for
+quoting but **must not** confirm a live booking against one until it's been
+reviewed — enforced server-side as a hard gate, not a UI hint.
+
+`Address` carries state/postal code as first-class columns (not buried in a
+free-text field) so per-jurisdiction tax and eligibility rules — needed for
+multi-state operation (§O) — can be derived without a schema change later.
+
 Shipment domain: `Shipment`, `ShipmentItem`, `ShipmentStop`,
 `ShipmentAssignment`, `ShipmentStatusEvent`, `Quote`, `PricingRule`.
+`PricingRule` and `Invoice` (below) carry a tax-jurisdiction reference
+derived from the shipment's addresses — tax is computed per-shipment, not
+a single flat platform-wide rate (§O). Every `Shipment` is confidential by
+default (§O) — there is no `Shipment.confidential` boolean to set; the
+restricted driver/display behavior in §H–§J applies unconditionally.
 
 Money: `Payment`, `Invoice`, `WebhookEvent` (external event dedupe).
 
@@ -222,8 +244,9 @@ re-validated server-side against the quote record, not accepted from the client.
 
 1. **Accept / Start Job** — driver sees only necessary job info (job number,
    approximate route, pickup time, cargo quantity, required vehicle,
-   instructions) — never customer billing details; confidential shipments
-   show minimum necessary detail.
+   instructions) — never customer billing details. Every shipment is
+   confidential by default (§O), so this minimum-necessary view is simply
+   how the driver app always looks, not a special case.
 2. **Verify Pickup** — `ARRIVED` → server checks assigned driver + valid
    state → PIN/QR/signature verification (short-lived, single-use,
    rate-limited, never logged) → cargo confirmation (`MATCHES` /
@@ -236,10 +259,12 @@ re-validated server-side against the quote record, not accepted from the client.
    assignment/state/verification and creates the delivery event, POD,
    audit event, customer notification, and billing trigger together.
 
-Confidential-load mode throughout: no cargo description/photography beyond
-what's required, no pricing shown, no internal notes — just
+Confidential-load mode applies to every shipment, unconditionally (§O — no
+non-confidential tier exists at MVP): no cargo description/photography
+beyond what's required, no pricing shown, no internal notes — just
 "CONFIDENTIAL SHIPMENT — do not photograph contents, do not open packaging,
-verify recipient before release."
+verify recipient before release." There is no per-shipment branch in the
+driver UI for this; it is simply how every job screen renders.
 
 ## J. Dispatch Workflow
 
@@ -322,10 +347,11 @@ never re-implemented per surface.
   permission policy functions.
 - Integration/API tests: real server authorization (not mocked) for every
   endpoint — see mandatory negative-authorization cases below.
-- E2E: full booking → assignment → pickup → transit → delivery → POD, for
-  both standard and confidential shipments, plus exception paths (rejection,
-  cancellation, no driver available, discrepancy, seal mismatch, payment
-  failure, duplicate submit).
+- E2E: full booking → assignment → pickup → transit → delivery → POD,
+  asserting the confidential-load driver view throughout (§H–§J — every
+  shipment is confidential, so this is the one path, not a variant), plus
+  exception paths (rejection, cancellation, no driver available,
+  discrepancy, seal mismatch, payment failure, duplicate submit).
 - Concurrency tests: double-assignment race, double-accept race, double-click
   booking, duplicate webhook, double "Complete Delivery" tap, vehicle
   availability changing mid-booking — all resolved via DB constraints,
@@ -354,22 +380,40 @@ These are genuine unknowns, not decisions I'll silently make:
 - ~~Business entity/brand name~~ → **Midway Mover** (singular — matches the
   domain; not "Midway Movers").
 - ~~Domain name / production URL~~ → **midwaymover.com** (owner-owned).
+- ~~Service area & regulatory scope~~ → **multi-state US at launch**.
+  Which specific states is still owner-TBD, but that detail doesn't block
+  Phase 1: the schema models jurisdiction as data (`Address` carries
+  state/postal code; `PricingRule`/`Invoice` carry a `taxJurisdiction`
+  reference), not as a hardcoded state list, precisely so specific states
+  can be added operationally without a schema change. Multi-state does
+  drive one firm Phase-1 decision: **tax is computed per-shipment from the
+  pickup/delivery jurisdiction, not a single flat platform-wide rate.**
+  Country scope is US-only for MVP (no cross-border data-residency
+  handling needed yet).
+- ~~Fleet vehicle data at launch~~ → **placeholder defaults**. `Vehicle`/
+  `VehicleCapability` ship in Phase 1 seeded with conservative,
+  clearly-labeled placeholder payload/interior-dimension figures for the
+  four vehicle classes (minivan, pickup, cargo van, sprinter-class van),
+  each row flagged `needsReview: true`. The vehicle-matching engine (§H)
+  already fails safe to `SPECIAL_REVIEW_REQUIRED` on any uncertain fit, so
+  shipping with placeholders is safe — but **no placeholder row may be used
+  to accept a live booking until an owner (or fleet manager) reviews and
+  confirms its real specs; that review gate is a Phase-1/-8 requirement,
+  not optional cleanup.**
+- ~~Confidential-shipment tier~~ → **default-on for every shipment, with no
+  non-confidential tier at MVP.** This simplifies the model considerably —
+  see the §H–§J updates below. Every driver-facing shipment view uses the
+  restricted "confidential load" UI; there is no `Shipment.confidential`
+  toggle to build, test, or get wrong at MVP. (Post-MVP, if a lower-friction
+  non-confidential tier is ever wanted, it's additive — a boolean plus a
+  UI branch — not a rearchitecture.)
 
-**Still open** — need owner input before Phase 1 fully locks:
+**Still open** — does not block Phase 1, revisit before Phase 18 (deployment):
 
-1. **Service area & regulatory scope** — which country/state(s)/province(s)?
-   (Affects tax handling, driver eligibility rules, data residency.)
-2. **Fleet size & vehicle data at launch** — how many vehicles/drivers
-   on day one, and do we have real payload/interior-dimension specs per
-   vehicle to seed `VehicleCapability`, or do we need placeholder defaults
-   reviewed before go-live?
-3. **Confidential-shipment tier** — is "confidential mode" a customer-
-   selectable option on every booking, a paid tier, or default-on for all
-   shipments given the brand promise ("Private. Dedicated. Confidential.")?
-4. **Budget/timeline constraints** that should shape MVP scope (§P).
+1. **Budget/timeline constraints** that should shape MVP scope (§P) —
+   informational for sequencing/prioritization, not a schema input.
 
-Until these are answered, Phase 1 (database design) proceeds using sensible
-defaults where none is given, flagged in ADRs so they're easy to revisit.
+Phase 1 (database design) may now proceed on this document.
 
 ## P. MVP Boundary
 
@@ -377,33 +421,38 @@ defaults where none is given, flagged in ADRs so they're easy to revisit.
 - Guest + registered customer booking (3-step flow), **plus business
   accounts**: `Organization` / `OrganizationMember` / `CUSTOMER_MANAGER`,
   org-scoped shipment visibility, and inviting additional users to an org.
-- Server-computed vehicle matching for the four vehicle classes.
+- Server-computed vehicle matching for the four vehicle classes, seeded
+  with placeholder `VehicleCapability` specs pending owner review (§G, §O).
+- Multi-state US tax handling: tax computed per-shipment from pickup/
+  delivery jurisdiction, not a flat platform rate (§O).
 - Stripe payment at booking, webhook-driven payment confirmation.
 - Dispatcher manual assignment (no auto-assignment algorithm at MVP).
 - Driver PWA: accept → verify pickup (PIN) → transport → verify delivery
-  (PIN) → POD.
+  (PIN) → POD — always in confidential-load mode (§H–§J, §O); there is no
+  non-confidential shipment tier to build or test at MVP.
 - Customer tracking via opaque token link with coarse live status.
 - SMS + email notifications for the core status milestones.
-- Confidential-shipment mode (display restrictions) — not a separate paid
-  product yet.
 - Core audit log for security-sensitive actions.
 - Automated negative-authorization test suite (§N) — not optional, ships
   with MVP.
 
 **Post-MVP:**
-- Recurring/scheduled routes for business accounts.
+- Recurring/scheduled routes for business accounts, saved locations at scale.
 - Auto-assignment/optimization of driver-to-job matching.
 - Seal/tamper-evidence hardware integration.
 - Incident-workflow automation beyond basic reporting.
 - Advanced admin reporting/analytics.
-- Recurring/scheduled routes, saved locations at scale.
 - Passkey rollout beyond initial TOTP MFA for staff.
+- A lower-friction *non*-confidential shipment tier, if ever wanted — additive
+  to the schema (§G, §O), not a rearchitecture.
+- Full state-by-state regulatory/tax buildout as the service area expands
+  beyond initial launch states (§O).
 
 ## Q. Phase-by-Phase Implementation Plan
 
 | Phase | Deliverable | Status |
 |---|---|---|
-| 0 | Requirements + threat model | **This document — draft, pending §O answers** |
+| 0 | Requirements + threat model | **Locked** — this document |
 | 1 | Database architecture + state machine (formal schema/migrations) | Not started |
 | 2 | Design system | Not started |
 | 3 | Authentication + authorization | Not started |
@@ -423,6 +472,5 @@ defaults where none is given, flagged in ADRs so they're easy to revisit.
 | 17 | Security audit | Not started |
 | 18 | Staging + production deployment | Not started |
 
-No phase after this one begins until §O's blocking questions have owner
-answers (or explicit "proceed with the stated default") and this document is
-confirmed internally consistent.
+§O's blocking questions are answered (2026-09-08) and this document is
+internally consistent. Phase 1 (database schema/migrations) is next.
