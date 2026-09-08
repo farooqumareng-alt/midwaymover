@@ -1,4 +1,4 @@
-# Midvan Movers
+# Midway Movers
 
 Private, dedicated small/mid-load transportation platform — packages,
 1–4 pallets, and equipment moved in a dedicated vehicle (minivan, pickup,
