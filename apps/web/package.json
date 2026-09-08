@@ -12,7 +12,13 @@
   "dependencies": {
     "next": "16.3.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "next-auth": "5.0.0-beta.32",
+    "@auth/prisma-adapter": "2.11.3",
+    "nodemailer": "10.0.1",
+    "zod": "4.5.4",
+    "@midwaymover/db": "*",
+    "@midwaymover/core": "*"
   },
   "devDependencies": {
     "typescript": "7.0.2",
@@ -20,6 +26,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.3.4"
+    "eslint-config-next": "16.3.4",
+    "@types/nodemailer": "8.0.1"
   }
 }

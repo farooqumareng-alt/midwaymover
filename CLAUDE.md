@@ -37,8 +37,28 @@ Maps/SMS/email/storage providers are still candidates, not locked — confirm
 with the project owner before wiring credentials (spec §M).
 
 ## Current phase
-**Phase 1 — Database schema/migrations — done.** `apps/web` has a minimal
-Next.js scaffold; `packages/db` has the full Prisma schema, an applied
-initial migration, and a configured client (`@prisma/adapter-pg`, required
-by Prisma 7). See `docs/PHASE-0-SPECIFICATION.md` and `docs/DEV-SETUP.md`.
-Phase 2 (design system) is next.
+**Phase 3 — Authentication & authorization — core done.** Phase 1 (DB
+schema) and Phase 3 are complete; Phase 2 (design system) was skipped for
+now (no UI screens exist yet to need it) and can slot in before Phase 4.
+
+Auth: Auth.js v5 (beta — the only version supporting the App Router
+natively) with database sessions (server-revocable). CUSTOMER/
+CUSTOMER_MANAGER sign in via magic link (`apps/web/src/auth.ts`); DRIVER/
+DISPATCHER/BILLING/ADMIN/SUPER_ADMIN via password
+(`apps/web/src/lib/staff-auth.ts`), with mandatory TOTP MFA for the latter
+four roles (`apps/web/src/lib/mfa-enrollment.ts`). `packages/core` holds
+the reusable password/MFA/rate-limit primitives and the central
+authorization policy (`policy.ts`) every API route should call into.
+`apps/web/src/lib/actor.ts`'s `getActor()` is the one authoritative way to
+get the current caller's identity server-side — never trust a
+client-supplied id.
+
+Real HTTP round-trip tested against a running dev server (not just
+typechecked): staff login with/without MFA, MFA enrollment, rate limiting
+(confirmed blocking after the configured attempt count), server-side
+session revocation (deleting the DB row instantly invalidates a live
+cookie), disabled-account rejection, and the full magic-link flow
+(auto-creates a CUSTOMER-role user, single-use token, session issued).
+
+See `docs/PHASE-0-SPECIFICATION.md` and `docs/DEV-SETUP.md`. Phase 4
+(customer booking) is next.

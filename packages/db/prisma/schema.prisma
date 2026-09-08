@@ -48,13 +48,39 @@ enum UserRole {
 
 /// A single authenticated identity. GUEST (unauthenticated) has no row here
 /// by definition — guest checkout is modeled by Shipment.guestContact*.
+///
+/// Auth method by role (docs/PHASE-0-SPECIFICATION.md §K, confirmed
+/// 2026-09-08): CUSTOMER/CUSTOMER_MANAGER sign in via passwordless magic
+/// link (passwordHash stays null for these); DRIVER/DISPATCHER/BILLING/
+/// ADMIN/SUPER_ADMIN sign in via password. TOTP MFA is enforced server-side
+/// (not just offered) for DISPATCHER/BILLING/ADMIN/SUPER_ADMIN specifically
+/// — see the auth policy in apps/web, not modeled as a DB constraint since
+/// Postgres CHECK constraints can't reference "is MFA enrolled" cleanly.
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  phone     String?
-  role      UserRole
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  phone         String?
+  /// Defaults to CUSTOMER: this is the only role a signup can ever
+  /// self-assign. DRIVER/DISPATCHER/BILLING/ADMIN/SUPER_ADMIN accounts are
+  /// always provisioned by an admin (Phase 8), never created by the public
+  /// magic-link signup path — enforced in apps/web's signIn callback, not
+  /// just by omission from the UI.
+  role          UserRole  @default(CUSTOMER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  /// Argon2id hash. Null for magic-link-only accounts (CUSTOMER/
+  /// CUSTOMER_MANAGER) — never a placeholder/empty-string password.
+  passwordHash String?
+
+  /// AES-256-GCM-encrypted TOTP secret (never plaintext at rest — §E
+  /// HIGHLY SENSITIVE). Encryption key lives outside the DB (MFA_ENCRYPTION_KEY
+  /// env var), so a DB dump alone can't recover a usable secret.
+  mfaSecretEncrypted String?
+  mfaEnabled         Boolean @default(false)
 
   /// Soft-disable for an account (e.g. security incident, offboarding).
   /// A disabled user must fail every authz check server-side, not just be
@@ -67,8 +93,83 @@ model User {
   auditEventsActed  AuditEvent[]         @relation("AuditActor")
   apiKeys           ApiKey[]
   notifications     Notification[]
+  accounts          Account[]
+  sessions          Session[]
 
   @@index([role])
+}
+
+// ---------------------------------------------------------------------
+// Auth.js (NextAuth) required tables — database session strategy, chosen
+// specifically so a session can be revoked server-side on demand
+// (§ Authentication: "Implement logout/server-side revocation"), unlike a
+// stateless JWT session which can't be invalidated before it expires.
+// ---------------------------------------------------------------------
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id            String    @id @default(cuid())
+  sessionToken  String    @unique
+  userId        String
+  expires       DateTime
+  /// Set only by the password+MFA staff-login flow (src/lib/staff-auth.ts)
+  /// once a valid TOTP code has been verified — never by the magic-link
+  /// flow. Defense-in-depth alongside "a session for an MFA-required role
+  /// is only ever created after MFA succeeds": policy.ts's `mfaVerified`
+  /// checks this column explicitly rather than assuming that invariant
+  /// holds forever just because it does today.
+  mfaVerifiedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Used for both magic-link sign-in and email-verification tokens.
+/// `token` is the hash of the emailed value, never the raw value itself —
+/// mirrors the PickupVerification/DeliveryVerification pattern.
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+/// Durable, DB-backed rate-limit counter — deliberately not in-memory,
+/// since Vercel's serverless model gives no guarantee two requests share a
+/// process (§ Rate Limiting: login, password reset, OTP verification).
+/// One row per (bucketKey, windowStart); a request increments `count` and
+/// is rejected once count exceeds the caller's configured limit for that
+/// action.
+model RateLimitBucket {
+  id          String   @id @default(cuid())
+  /// e.g. "login:user@example.com" or "login:203.0.113.4" — action-scoped,
+  /// not just IP, so a distributed attempt against one account is still caught.
+  bucketKey   String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@unique([bucketKey, windowStart])
 }
 
 /// A business account. Individual customers never need one — see

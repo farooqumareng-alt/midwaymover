@@ -454,8 +454,8 @@ Phase 1 (database design) may now proceed on this document.
 |---|---|---|
 | 0 | Requirements + threat model | **Locked** — this document |
 | 1 | Database architecture + state machine (formal schema/migrations) | **Done** — `packages/db` |
-| 2 | Design system | Not started |
-| 3 | Authentication + authorization | Not started |
+| 2 | Design system | Not started — deferred until real UI screens exist to need it (Phase 4+) |
+| 3 | Authentication + authorization | **Core done** — `apps/web/src/auth.ts`, `src/lib/staff-auth.ts`, `src/lib/mfa-enrollment.ts`, `packages/core` |
 | 4 | Customer booking | Not started |
 | 5 | Customer tracking | Not started |
 | 6 | Driver workflow | Not started |

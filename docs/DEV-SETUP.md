@@ -55,6 +55,23 @@ npm run dev                # starts apps/web on http://localhost:3000
 regenerated from `packages/db/prisma/schema.prisma` by `npm run db:generate`,
 which also runs automatically as part of `npm run db:migrate`.
 
+### Environment files (all git-ignored, copy the matching `.env.example`)
+
+| File | Needed for |
+|---|---|
+| `packages/db/.env` | `DATABASE_URL` — used by `prisma migrate`/`generate` |
+| `packages/core/.env` | `MFA_ENCRYPTION_KEY` — only needed to run `packages/core` scripts directly |
+| `apps/web/.env` | `DATABASE_URL`, `MFA_ENCRYPTION_KEY`, `AUTH_SECRET` — Next.js only auto-loads env files from its own app root, not sibling packages, so these are duplicated here even though `packages/db`/`packages/core` also have their own copies |
+
+Generate `MFA_ENCRYPTION_KEY` and `AUTH_SECRET` with:
+```
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Magic-link sign-in has no real email provider wired yet (spec §M) — in
+development the link is printed to the `npm run dev` console instead of
+emailed; production refuses to start without a real provider configured.
+
 ## Database commands (from repo root)
 
 ```
