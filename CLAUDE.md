@@ -30,11 +30,15 @@ truth for product/architecture decisions.
 
 ## Stack (see spec §A, §K, §L, §M for rationale)
 Next.js + React + TypeScript (strict) · Node/TS service layer ·
-PostgreSQL · Stripe (payments) · Google Maps/Mapbox · S3-compatible private
-object storage with signed URLs · reputable SMS/email providers.
-Confirm exact providers with the project owner before wiring credentials —
-see spec §O (Open Questions).
+PostgreSQL via Prisma 7 + `@prisma/adapter-pg` (`packages/db`) ·
+Auth.js/NextAuth · Stripe (payments) · Google Maps/Mapbox · S3-compatible
+private object storage with signed URLs · reputable SMS/email providers.
+Maps/SMS/email/storage providers are still candidates, not locked — confirm
+with the project owner before wiring credentials (spec §M).
 
 ## Current phase
-**Phase 0 — Product Specification.** No application code has been written yet.
-See `docs/PHASE-0-SPECIFICATION.md`.
+**Phase 1 — Database schema/migrations — done.** `apps/web` has a minimal
+Next.js scaffold; `packages/db` has the full Prisma schema, an applied
+initial migration, and a configured client (`@prisma/adapter-pg`, required
+by Prisma 7). See `docs/PHASE-0-SPECIFICATION.md` and `docs/DEV-SETUP.md`.
+Phase 2 (design system) is next.

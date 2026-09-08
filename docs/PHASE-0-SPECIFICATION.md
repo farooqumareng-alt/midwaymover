@@ -453,7 +453,7 @@ Phase 1 (database design) may now proceed on this document.
 | Phase | Deliverable | Status |
 |---|---|---|
 | 0 | Requirements + threat model | **Locked** — this document |
-| 1 | Database architecture + state machine (formal schema/migrations) | Not started |
+| 1 | Database architecture + state machine (formal schema/migrations) | **Done** — `packages/db` |
 | 2 | Design system | Not started |
 | 3 | Authentication + authorization | Not started |
 | 4 | Customer booking | Not started |

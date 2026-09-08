@@ -1,0 +1,788 @@
+// Midway Mover — database schema
+//
+// Source of truth for entities/decisions: docs/PHASE-0-SPECIFICATION.md
+// §D (shipment state machine), §E (data classification), §G (entity list),
+// §O (multi-state tax jurisdiction, placeholder fleet data, confidential-
+// by-default shipments).
+//
+// Conventions used throughout this file:
+// - Every customer-owned row carries an explicit ownership column
+//   (organizationId / customerId / driverId / shipmentId) as a real FK,
+//   never inferred from a join alone (§C: "never trust organizationId,
+//   driverId or userId supplied by the browser" — this is the DB-level
+//   half of that rule; the server-derived-session half is Phase 3+).
+// - Append-only tables (ShipmentStatusEvent, ChainOfCustodyEvent,
+//   AuditEvent) have no fields meant to be mutated after insert; enforcing
+//   "no UPDATE, ever" is a service-layer rule (Phase 3+), but the shape
+//   here doesn't invite one.
+// - Money is stored in integer minor units (cents), never float.
+// - IDs are cuid() (opaque, non-sequential) everywhere a record could ever
+//   be reachable by ID from outside the server — see §"Quote Security" /
+//   tracking-token guidance: sequential IDs are an enumeration risk.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------
+// Identity & roles
+// ---------------------------------------------------------------------
+
+/// Platform-wide role. Grants a *capability class*; resource-level access
+/// still requires the row-level conditions in docs/PHASE-0-SPECIFICATION.md
+/// §C (e.g. a DRIVER only ever sees a Shipment they're assignedDriverId on).
+enum UserRole {
+  CUSTOMER
+  CUSTOMER_MANAGER
+  DRIVER
+  DISPATCHER
+  BILLING
+  ADMIN
+  SUPER_ADMIN
+}
+
+/// A single authenticated identity. GUEST (unauthenticated) has no row here
+/// by definition — guest checkout is modeled by Shipment.guestContact*.
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  phone     String?
+  role      UserRole
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Soft-disable for an account (e.g. security incident, offboarding).
+  /// A disabled user must fail every authz check server-side, not just be
+  /// hidden in UI. Disabling is itself an audited action (§ Audit Log).
+  disabledAt DateTime?
+
+  customerProfile   CustomerProfile?
+  driverProfile     DriverProfile?
+  organizationLinks OrganizationMember[]
+  auditEventsActed  AuditEvent[]         @relation("AuditActor")
+  apiKeys           ApiKey[]
+  notifications     Notification[]
+
+  @@index([role])
+}
+
+/// A business account. Individual customers never need one — see
+/// CustomerProfile.organizationId being nullable.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members        OrganizationMember[]
+  customers      CustomerProfile[]
+  shipments      Shipment[]
+  savedAddresses Address[]
+  savedContacts  Contact[]
+  invoices       Invoice[]
+
+  @@index([name])
+}
+
+/// Join row granting a User membership (and specifically the
+/// CUSTOMER_MANAGER capability) in an Organization. A plain CUSTOMER role
+/// user can also be a member without being a manager — manager-ness is
+/// per-org, not global, via isManager.
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  isManager      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+/// Customer-specific profile data, 1:1 with User for customer-role users.
+/// organizationId is nullable: an individual customer has none; a business
+/// account's users share one via their OrganizationMember rows, but the
+/// profile itself can still optionally default to an org for convenience.
+model CustomerProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  organizationId String?
+  createdAt      DateTime @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  shipments    Shipment[]
+  addresses    Address[]
+  contacts     Contact[]
+
+  @@index([organizationId])
+}
+
+/// Driver-specific profile, 1:1 with User for driver-role users.
+model DriverProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  licenseNumber String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignments ShipmentAssignment[]
+  locations   DriverLocation[]
+  incidents   Incident[]
+
+  @@index([isActive])
+}
+
+// ---------------------------------------------------------------------
+// Fleet
+// ---------------------------------------------------------------------
+
+enum VehicleClass {
+  MINIVAN
+  PICKUP_TRUCK
+  CARGO_VAN
+  SPRINTER_CLASS_VAN
+}
+
+/// A physical vehicle in the fleet.
+model Vehicle {
+  id           String       @id @default(cuid())
+  vehicleClass VehicleClass
+  plate        String       @unique
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+
+  capability  VehicleCapability?
+  assignments ShipmentAssignment[]
+
+  @@index([vehicleClass, isActive])
+}
+
+/// Payload/dimension envelope used by the vehicle-matching engine
+/// (docs/PHASE-0-SPECIFICATION.md §H). Seeded at Phase 1 with placeholder
+/// figures per §O — needsReview MUST be checked server-side before a
+/// vehicle of this class is used to *confirm* a live booking; it may still
+/// be used to produce a non-binding quote. This is a hard gate enforced in
+/// the booking-confirmation service (Phase 4), not a UI-only warning.
+model VehicleCapability {
+  id               String       @id @default(cuid())
+  vehicleId        String       @unique
+  vehicleClass     VehicleClass @unique
+  payloadKg        Int
+  interiorLengthCm Int
+  interiorWidthCm  Int
+  interiorHeightCm Int
+  maxPalletCount   Int
+  needsReview      Boolean      @default(true)
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  notes            String?
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------
+// Addresses & contacts
+// ---------------------------------------------------------------------
+
+/// Normalized, geocoded address. state/postalCode are first-class columns
+/// (not folded into a free-text line) specifically so per-jurisdiction tax
+/// and eligibility rules (§O — multi-state US at launch) can be derived
+/// without a schema change as new states come online operationally.
+model Address {
+  id             String   @id @default(cuid())
+  organizationId String?
+  customerId     String?
+  line1          String
+  line2          String?
+  city           String
+  state          String
+  postalCode     String
+  country        String   @default("US")
+  latitude       Float?
+  longitude      Float?
+  createdAt      DateTime @default(now())
+
+  organization Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     CustomerProfile? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  stopsAsFrom  ShipmentStop[]
+
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([state, postalCode])
+}
+
+/// A saved contact (e.g. a recurring recipient) belonging to a customer or
+/// org — distinct from the per-shipment pickup/delivery contact captured
+/// on ShipmentStop, which always wins at execution time.
+model Contact {
+  id             String  @id @default(cuid())
+  organizationId String?
+  customerId     String?
+  name           String
+  phone          String
+  email          String?
+
+  organization Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     CustomerProfile? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([customerId])
+}
+
+// ---------------------------------------------------------------------
+// Shipment state machine (docs/PHASE-0-SPECIFICATION.md §D)
+// ---------------------------------------------------------------------
+
+enum ShipmentStatus {
+  DRAFT
+  QUOTED
+  AWAITING_PAYMENT
+  CONFIRMED
+  AWAITING_ASSIGNMENT
+  ASSIGNED
+  DRIVER_EN_ROUTE_PICKUP
+  ARRIVED_PICKUP
+  PICKUP_VERIFICATION
+  LOADED
+  IN_TRANSIT
+  ARRIVED_DELIVERY
+  DELIVERY_VERIFICATION
+  DELIVERED
+  COMPLETED
+  // Exception states
+  CANCELLED
+  REJECTED
+  FAILED_PICKUP
+  FAILED_DELIVERY
+  ON_HOLD
+  INCIDENT_REPORTED
+}
+
+enum CargoType {
+  BOXES_PACKAGES
+  PALLETS
+  EQUIPMENT_MACHINERY
+  OTHER
+}
+
+/// The core shipment record. Every shipment is confidential by default
+/// (§O) — there is intentionally no `confidential` boolean here; the
+/// restricted driver/display behavior in §H–§J is unconditional, not a
+/// per-row toggle.
+model Shipment {
+  id     String         @id @default(cuid())
+  status ShipmentStatus @default(DRAFT)
+
+  // Ownership — never trust a client-supplied org/customer id against
+  // these; the service layer derives the caller's identity from the
+  // authenticated session and checks it against these columns (§C).
+  organizationId String?
+  customerId     String?
+
+  // Guest checkout (§H — booking must not require registration first).
+  guestContactName  String?
+  guestContactPhone String?
+  guestContactEmail String?
+
+  cargoType      CargoType
+  palletCount    Int?
+  approxWeightKg Int
+  lengthCm       Int?
+  widthCm        Int?
+  heightCm       Int?
+
+  pickupForkliftAvailable    Boolean @default(false)
+  pickupDockAvailable        Boolean @default(false)
+  pickupCustomerLoading      Boolean @default(false)
+  pickupDriverAssistNeeded   Boolean @default(false)
+  deliveryForkliftAvailable  Boolean @default(false)
+  deliveryDockAvailable      Boolean @default(false)
+  deliveryReceiverUnloading  Boolean @default(false)
+  deliveryDriverAssistNeeded Boolean @default(false)
+
+  /// Set when the vehicle-matching engine (§H) can't confidently resolve a
+  /// vehicle class — routes to a human instead of guessing. A shipment in
+  /// this state cannot reach CONFIRMED without dispatcher/admin sign-off.
+  specialReviewRequired Boolean @default(false)
+
+  requiredVehicleClass VehicleClass?
+
+  scheduledFor DateTime? // null = "now" / ASAP
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  /// High-entropy opaque token for the public tracking link (§ Customer
+  /// Tracking — never a sequential/guessable shipment id). Nullable until
+  /// the shipment is booked; revocable by nulling revokedAt.
+  trackingToken     String    @unique @default(cuid())
+  trackingRevokedAt DateTime?
+
+  organization Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  customer     CustomerProfile? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  items                ShipmentItem[]
+  stops                ShipmentStop[]
+  assignments          ShipmentAssignment[]
+  statusEvents         ShipmentStatusEvent[]
+  quotes               Quote[]
+  payments             Payment[]
+  invoice              Invoice?
+  pickupVerification   PickupVerification?
+  deliveryVerification DeliveryVerification?
+  custodyEvents        ChainOfCustodyEvent[]
+  seals                Seal[]
+  pods                 POD[]
+  documents            Document[]
+  incidents            Incident[]
+  notifications        Notification[]
+
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([status])
+  @@index([scheduledFor])
+}
+
+/// A line item of cargo within a shipment (kept separate from the
+/// summary fields on Shipment so multi-item loads are representable
+/// without overloading one row — §"Do not put everything into one
+/// Shipment table").
+model ShipmentItem {
+  id          String @id @default(cuid())
+  shipmentId  String
+  description String
+  quantity    Int    @default(1)
+  weightKg    Int?
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+}
+
+enum StopType {
+  PICKUP
+  DELIVERY
+}
+
+/// A pickup or delivery stop. Kept separate from Shipment/Address so the
+/// contact captured at booking time is immutable history even if the
+/// underlying saved Address or Contact is later edited.
+model ShipmentStop {
+  id           String   @id @default(cuid())
+  shipmentId   String
+  stopType     StopType
+  addressId    String?
+  contactName  String
+  contactPhone String
+  notes        String?
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  address  Address? @relation(fields: [addressId], references: [id], onDelete: SetNull)
+
+  @@index([shipmentId])
+}
+
+/// Current + historical driver/vehicle assignment. Kept append-friendly
+/// (a shipment can have more than one row if reassigned) rather than a
+/// single mutable "assignedDriverId" column on Shipment, so reassignment
+/// history survives — reassignment is a dispatcher action that must be
+/// auditable (§ Dispatch Actions: "Sensitive overrides require reason").
+model ShipmentAssignment {
+  id           String    @id @default(cuid())
+  shipmentId   String
+  driverId     String
+  vehicleId    String
+  assignedAt   DateTime  @default(now())
+  unassignedAt DateTime?
+  /// Required when a dispatcher reassigns/unassigns mid-flight (§ Dispatch
+  /// Actions — "every override records reason").
+  reason       String?
+
+  shipment Shipment      @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  driver   DriverProfile @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  vehicle  Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
+  @@index([shipmentId])
+  @@index([driverId])
+  @@index([vehicleId])
+}
+
+/// Append-only. One row per state transition. Never updated after insert;
+/// a correction is a new row, not an edit to an old one (§D).
+model ShipmentStatusEvent {
+  id          String          @id @default(cuid())
+  shipmentId  String
+  fromStatus  ShipmentStatus?
+  toStatus    ShipmentStatus
+  actorUserId String?
+  /// Free-form structured context for the transition (e.g. cancellation
+  /// reason, incident summary) — never PII beyond what's already on the
+  /// shipment; never a place to log secrets/verification codes (§ Logging).
+  metadata    Json?
+  createdAt   DateTime        @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, createdAt])
+}
+
+// ---------------------------------------------------------------------
+// Quoting & pricing (§ Quote Security)
+// ---------------------------------------------------------------------
+
+enum QuoteStatus {
+  ACTIVE
+  EXPIRED
+  CONSUMED
+}
+
+/// Server-computed, expiring price reference. The client only ever holds
+/// `id`; booking re-validates this row server-side (route, cargo, vehicle
+/// requirements, pricing version, expiry) — a client-supplied price is
+/// never authoritative (§ Quote Security).
+model Quote {
+  id              String      @id @default(cuid())
+  shipmentId      String
+  status          QuoteStatus @default(ACTIVE)
+  priceCents      Int
+  currency        String      @default("USD")
+  pricingRuleId   String
+  taxJurisdiction String
+  taxCents        Int         @default(0)
+  expiresAt       DateTime
+  createdAt       DateTime    @default(now())
+
+  shipment    Shipment    @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  pricingRule PricingRule @relation(fields: [pricingRuleId], references: [id], onDelete: Restrict)
+
+  @@index([shipmentId])
+  @@index([status, expiresAt])
+}
+
+/// Versioned pricing configuration. Never edited in place once a Quote
+/// references it — pricing changes create a new PricingRule row so past
+/// quotes/invoices remain reproducible/auditable.
+model PricingRule {
+  id           String       @id @default(cuid())
+  vehicleClass VehicleClass
+  baseFeeCents Int
+  perKmCents   Int
+  perKgCents   Int
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+
+  quotes Quote[]
+
+  @@index([vehicleClass, isActive])
+}
+
+// ---------------------------------------------------------------------
+// Money (§ Payments)
+// ---------------------------------------------------------------------
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+/// Payment status is only ever trusted from a verified Stripe webhook
+/// (§ Webhook Event Table) — never from a client redirect param. This row
+/// is written/updated only by the webhook handler.
+model Payment {
+  id                    String        @id @default(cuid())
+  shipmentId            String
+  status                PaymentStatus @default(PENDING)
+  amountCents           Int
+  currency              String        @default("USD")
+  stripePaymentIntentId String?       @unique
+  /// Idempotency key for the booking/payment operation (§ Idempotency —
+  /// double-clicking Book must not create two charges).
+  idempotencyKey        String        @unique
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+
+  @@index([shipmentId])
+}
+
+model Invoice {
+  id              String   @id @default(cuid())
+  shipmentId      String   @unique
+  organizationId  String?
+  amountCents     Int
+  taxCents        Int
+  currency        String   @default("USD")
+  taxJurisdiction String
+  issuedAt        DateTime @default(now())
+
+  shipment     Shipment      @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+}
+
+/// Dedupe table for inbound provider webhooks (Stripe, etc.) — checked
+/// before processing so a duplicate delivery is a no-op, not a double
+/// charge/state-change (§ Webhook Event Table).
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  provider    String
+  externalId  String
+  processedAt DateTime @default(now())
+
+  @@unique([provider, externalId])
+}
+
+// ---------------------------------------------------------------------
+// Trust & verification (§ Chain of Custody, § Tamper-Evident Seals)
+// ---------------------------------------------------------------------
+
+enum VerificationMethod {
+  PIN
+  QR
+  SIGNATURE
+}
+
+/// One-time pickup verification. `codeHash` — never the raw code — is
+/// stored; the raw PIN/QR payload is never logged (§ Logging, § Pickup).
+/// Single-use: `consumedAt` is set atomically on successful verification
+/// and re-checked before allowing another attempt.
+model PickupVerification {
+  id           String             @id @default(cuid())
+  shipmentId   String             @unique
+  method       VerificationMethod
+  codeHash     String
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  attemptCount Int                @default(0)
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+}
+
+/// Mirrors PickupVerification for the delivery/recipient side.
+model DeliveryVerification {
+  id           String             @id @default(cuid())
+  shipmentId   String             @unique
+  method       VerificationMethod
+  codeHash     String
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  attemptCount Int                @default(0)
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+}
+
+enum CustodyEventType {
+  DRIVER_ASSIGNED
+  ARRIVED_PICKUP
+  PICKUP_IDENTITY_VERIFIED
+  CARGO_VERIFIED
+  SEAL_APPLIED
+  LOADED
+  DEPARTED
+  ARRIVED_DELIVERY
+  RECIPIENT_VERIFIED
+  SEAL_VERIFIED
+  DELIVERED
+  /// A correction/addendum to an earlier event — never a rewrite of it
+  /// (§ Tamper-Evident Seals, § Chain of Custody: "corrections should
+  /// generally create an additional correction event").
+  CORRECTION
+}
+
+/// Append-only chain-of-custody log. Never updated after insert.
+model ChainOfCustodyEvent {
+  id          String           @id @default(cuid())
+  shipmentId  String
+  eventType   CustodyEventType
+  actorUserId String?
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, createdAt])
+}
+
+enum SealStatus {
+  APPLIED
+  VERIFIED_MATCH
+  VERIFIED_MISMATCH
+}
+
+/// A tamper-evident seal number. A verification mismatch does NOT
+/// silently complete the shipment — it must route to the incident
+/// workflow (§ Tamper-Evident Seals).
+model Seal {
+  id         String     @id @default(cuid())
+  shipmentId String
+  sealNumber String
+  status     SealStatus @default(APPLIED)
+  appliedAt  DateTime   @default(now())
+  verifiedAt DateTime?
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+}
+
+/// Proof of delivery. Never a public storage object — `storageKey` is
+/// resolved to a short-lived signed URL by the service layer, per shipment
+/// ownership/authorization checks (§ Documents and POD).
+model POD {
+  id         String   @id @default(cuid())
+  shipmentId String
+  storageKey String
+  createdAt  DateTime @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+}
+
+enum DocumentType {
+  CARGO_PHOTO
+  POD_PHOTO
+  SIGNATURE_CAPTURE
+  INCIDENT_PHOTO
+  OTHER
+}
+
+/// General private document/attachment. Same signed-URL access model as
+/// POD. `mimeType`/`fileSizeBytes` recorded from server-side validation
+/// (magic-byte check), never trusted from the client's Content-Type header
+/// alone (§ Camera/Photo Security).
+model Document {
+  id               String       @id @default(cuid())
+  shipmentId       String
+  type             DocumentType
+  storageKey       String
+  mimeType         String
+  fileSizeBytes    Int
+  uploadedByUserId String?
+  createdAt        DateTime     @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+}
+
+enum IncidentStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+}
+
+/// Driver-reported (or system-raised, e.g. seal mismatch) incident. Never
+/// silently resolved by a status-command side effect — resolution is an
+/// explicit action.
+model Incident {
+  id          String         @id @default(cuid())
+  shipmentId  String
+  driverId    String?
+  status      IncidentStatus @default(OPEN)
+  description String
+  createdAt   DateTime       @default(now())
+  resolvedAt  DateTime?
+
+  shipment Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  driver   DriverProfile? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+
+  @@index([shipmentId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------
+// Platform
+// ---------------------------------------------------------------------
+
+enum NotificationChannel {
+  SMS
+  EMAIL
+}
+
+/// Outbound notification log. `body` is intentionally generic per §
+/// Notifications ("Your shipment GT-84XX has been delivered.") — no
+/// confidential shipment detail belongs in an SMS/email body; detail lives
+/// behind the authenticated tracking link.
+model Notification {
+  id         String              @id @default(cuid())
+  shipmentId String?
+  userId     String?
+  channel    NotificationChannel
+  body       String
+  sentAt     DateTime            @default(now())
+
+  shipment Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([shipmentId])
+  @@index([userId])
+}
+
+/// Coarse-grained, retention-limited driver GPS trail (§E — HIGHLY
+/// SENSITIVE; § Live Location Privacy — raw history is not kept
+/// indefinitely). A scheduled job purges rows past the retention window;
+/// that job is a Phase-12 deliverable, not implemented here.
+model DriverLocation {
+  id         String   @id @default(cuid())
+  driverId   String
+  shipmentId String?
+  latitude   Float
+  longitude  Float
+  recordedAt DateTime @default(now())
+
+  driver DriverProfile @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, recordedAt])
+  @@index([shipmentId])
+}
+
+/// Append-only audit trail for security-sensitive actions (§ Audit Log).
+/// Never updated after insert; not exposed for normal-user modification —
+/// only the ADMIN-with-audit-permission read path (§C) touches this table,
+/// and only to read.
+model AuditEvent {
+  id           String   @id @default(cuid())
+  actorUserId  String?
+  action       String
+  resourceType String
+  resourceId   String
+  result       String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([resourceType, resourceId])
+  @@index([actorUserId, createdAt])
+}
+
+/// Server-to-server API credential (future integrations). `keyHash` only —
+/// never the raw key at rest, matching the PickupVerification/
+/// DeliveryVerification pattern.
+model ApiKey {
+  id        String    @id @default(cuid())
+  userId    String
+  keyHash   String    @unique
+  label     String
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
