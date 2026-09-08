@@ -1,4 +1,4 @@
-# Midway Movers — Working Rules
+# Midway Mover — Working Rules
 
 Private, dedicated small/mid-load transportation platform (packages, 1–4 pallets,
 equipment) run in minivans, pickups, cargo vans, and sprinter-class vans. Value

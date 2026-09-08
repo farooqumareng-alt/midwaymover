@@ -6,7 +6,7 @@ budget/timeline) still need owner input before Phase 1 fully locks.
 Repository state at time of writing: empty (greenfield). No application code exists yet.
 
 **Confirmed decisions (2026-09-08):**
-- Brand/operating name: **Midway Movers** (previously drafted as "Midvan
+- Brand/operating name: **Midway Mover** (previously drafted as "Midvan
   Movers" — corrected). Production domain: **midwaymover.com** (owner-owned).
 - Business accounts (multi-user `Organization` + `CUSTOMER_MANAGER`) are
   **in scope for MVP**, not deferred — this changes §P from the earlier draft.
@@ -280,7 +280,7 @@ authorization; channel/topic names are not treated as an authorization boundary.
 ## L. Recommended Repository / Module Structure
 
 ```
-midwaymovers/
+midwaymover/
   apps/
     web/                 # Next.js: public site + customer app (+ dispatch route group, or split out later)
     driver-pwa/           # Next.js/React PWA, mobile-first, offline-tolerant shell
@@ -351,12 +351,9 @@ These are genuine unknowns, not decisions I'll silently make:
 - ~~Business accounts at MVP~~ → **required at MVP**: `Organization`,
   `OrganizationMember`, and `CUSTOMER_MANAGER` are in the Phase 1 schema and
   the MVP feature set from day one (see updated §P).
-- ~~Business entity/brand name~~ → **Midway Movers**.
+- ~~Business entity/brand name~~ → **Midway Mover** (singular — matches the
+  domain; not "Midway Movers").
 - ~~Domain name / production URL~~ → **midwaymover.com** (owner-owned).
-  Note the domain is singular ("mover") while the confirmed brand is
-  plural ("Movers") — intentional per owner; carry both forms consistently
-  (brand text = "Midway Movers", URLs/email domain = midwaymover.com) rather
-  than assuming a typo and "fixing" one to match the other.
 
 **Still open** — need owner input before Phase 1 fully locks:
 
