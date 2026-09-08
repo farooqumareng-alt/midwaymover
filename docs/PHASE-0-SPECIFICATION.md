@@ -1,7 +1,17 @@
 # Phase 0 — Product Specification
 
-Status: DRAFT — pending owner review of §O (Open Questions) before Phase 1 begins.
+Status: DRAFT — core architecture decisions confirmed (see §O); remaining
+open questions (region/compliance, fleet data, confidentiality tier, domain,
+budget/timeline) still need owner input before Phase 1 fully locks.
 Repository state at time of writing: empty (greenfield). No application code exists yet.
+
+**Confirmed decisions (2026-09-08):**
+- Business accounts (multi-user `Organization` + `CUSTOMER_MANAGER`) are
+  **in scope for MVP**, not deferred — this changes §P from the earlier draft.
+- Auth: **self-hosted Auth.js/NextAuth on our own Postgres**, custom TOTP MFA
+  for staff/admin.
+- Payments: **Stripe**.
+- Hosting: **Vercel + managed Postgres (Neon)**.
 
 ---
 
@@ -242,11 +252,10 @@ authorization; channel/topic names are not treated as an authorization boundary.
 
 ## K. Security Architecture
 
-- **AuthN**: mature managed identity provider (candidate: Auth.js/NextAuth
-  with a Postgres adapter, or a hosted provider like Clerk/WorkOS — decision
-  pending, see §O) with MFA/passkey support for staff and above. Secure
-  server sessions: `Secure`, `HttpOnly`, appropriate `SameSite`, rotated on
-  login/privilege change. No sensitive session data in `localStorage`.
+- **AuthN**: Auth.js/NextAuth on our own Postgres (confirmed, §O), custom
+  TOTP MFA for DISPATCHER/BILLING/ADMIN/SUPER_ADMIN. Secure server sessions:
+  `Secure`, `HttpOnly`, appropriate `SameSite`, rotated on login/privilege
+  change. No sensitive session data in `localStorage`.
 - **AuthZ**: centralized policy module in the service layer — role check +
   resource-condition check on every mutating and every sensitive-read
   endpoint; never a UI-only restriction.
@@ -300,9 +309,9 @@ never re-implemented per surface.
 | SMS | Twilio (or similar) | Generic notification text only, no confidential detail |
 | Transactional email | Postmark/SendGrid/SES | Booking/receipt/POD-link email |
 | Object storage | S3-compatible (AWS S3 / Cloudflare R2) | Private buckets, signed URLs only |
-| Auth | Auth.js/NextAuth or Clerk/WorkOS | MFA/passkey capable |
+| Auth | Auth.js/NextAuth + Postgres | Confirmed. Custom TOTP MFA for staff |
 | Realtime | Postgres LISTEN/NOTIFY + WebSocket layer, or a managed realtime service | Authenticated per-connection |
-| Hosting | Vercel (web) + managed Postgres (Neon/RDS/Supabase) | Pending owner preference |
+| Hosting | Vercel (web) + Neon (managed Postgres) | Confirmed |
 | Error tracking | Sentry (with PII scrubbing) | |
 
 ## N. Testing Strategy
@@ -332,42 +341,41 @@ never re-implemented per surface.
 
 These are genuine unknowns, not decisions I'll silently make:
 
+**Resolved:**
+- ~~Auth provider~~ → **Auth.js/NextAuth + our own Postgres**, custom TOTP MFA
+  for staff/admin.
+- ~~Payment provider~~ → **Stripe**.
+- ~~Hosting/infra preference~~ → **Vercel + managed Postgres (Neon)**.
+- ~~Business accounts at MVP~~ → **required at MVP**: `Organization`,
+  `OrganizationMember`, and `CUSTOMER_MANAGER` are in the Phase 1 schema and
+  the MVP feature set from day one (see updated §P).
+
+**Still open** — need owner input before Phase 1 fully locks:
+
 1. **Service area & regulatory scope** — which country/state(s)/province(s)?
    (Affects tax handling, driver eligibility rules, data residency.)
 2. **Business entity name for legal/branding text** — confirm "Midvan
    Movers" is the operating name to use throughout the UI and documents.
-3. **Auth provider** — build on NextAuth/Auth.js (self-hosted, more control)
-   vs. a hosted identity provider (Clerk/WorkOS — faster MFA/passkey, less
-   control, added vendor dependency)? Default assumption if undecided:
-   Auth.js + Postgres, custom MFA via TOTP.
-4. **Payment provider** — confirming Stripe (default assumption) vs. another
-   PCI-compliant processor already in use by the business.
-5. **Hosting/infra preference** — Vercel + managed Postgres (fastest to
-   ship) vs. AWS/GCP self-managed (more control, more DevSecOps overhead)?
-6. **Business accounts at MVP** — is multi-user `Organization`/
-   `CUSTOMER_MANAGER` support required for launch, or is single-customer
-   booking sufficient for v1 with orgs added post-MVP? (Affects §P scope.)
-7. **Fleet size & vehicle data at launch** — how many vehicles/drivers
+3. **Fleet size & vehicle data at launch** — how many vehicles/drivers
    on day one, and do we have real payload/interior-dimension specs per
    vehicle to seed `VehicleCapability`, or do we need placeholder defaults
    reviewed before go-live?
-8. **Confidential-shipment tier** — is "confidential mode" a customer-
+4. **Confidential-shipment tier** — is "confidential mode" a customer-
    selectable option on every booking, a paid tier, or default-on for all
    shipments given the brand promise ("Private. Dedicated. Confidential.")?
-9. **Domain name / production URL** for tracking links, CSP, email sender
+5. **Domain name / production URL** for tracking links, CSP, email sender
    domain (needed for DNS/DKIM/SPF setup in Phase 18).
-10. **Budget/timeline constraints** that should shape MVP scope (§P).
+6. **Budget/timeline constraints** that should shape MVP scope (§P).
 
-Until these are answered, Phase 1 (database design) proceeds using the
-default assumptions stated above where a default is given, flagged in ADRs
-so they're easy to revisit.
+Until these are answered, Phase 1 (database design) proceeds using sensible
+defaults where none is given, flagged in ADRs so they're easy to revisit.
 
 ## P. MVP Boundary
 
 **In scope for MVP:**
-- Guest + registered customer booking (3-step flow), single-customer
-  accounts (org/business-account UI can be stubbed as post-MVP unless §O.6
-  says otherwise).
+- Guest + registered customer booking (3-step flow), **plus business
+  accounts**: `Organization` / `OrganizationMember` / `CUSTOMER_MANAGER`,
+  org-scoped shipment visibility, and inviting additional users to an org.
 - Server-computed vehicle matching for the four vehicle classes.
 - Stripe payment at booking, webhook-driven payment confirmation.
 - Dispatcher manual assignment (no auto-assignment algorithm at MVP).
@@ -382,7 +390,7 @@ so they're easy to revisit.
   with MVP.
 
 **Post-MVP:**
-- Full business-account / multi-seat organizations with recurring routes.
+- Recurring/scheduled routes for business accounts.
 - Auto-assignment/optimization of driver-to-job matching.
 - Seal/tamper-evidence hardware integration.
 - Incident-workflow automation beyond basic reporting.
