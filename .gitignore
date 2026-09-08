@@ -12,3 +12,8 @@ coverage/
 Thumbs.db
 .vercel/
 .turbo/
+
+# Next.js
+apps/web/.next/
+apps/web/next-env.d.ts
+*.tsbuildinfo
