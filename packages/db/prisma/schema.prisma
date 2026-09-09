@@ -27,6 +27,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // `url` comes from prisma7.config.ts (datasource.url), not here — see
+  // that file's comment for why prisma7.config.ts and src/client.ts
+  // deliberately read two DIFFERENTLY-NAMED env vars (Prisma 7 removed
+  // schema-level `directUrl` entirely, in favor of just `url` — confirmed
+  // against the actual CLI error and https://pris.ly/d/config-datasource).
 }
 
 // ---------------------------------------------------------------------

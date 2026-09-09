@@ -38,7 +38,7 @@ Start/stop it explicitly:
 `packages/db/.env` holds the `DATABASE_URL` Prisma uses; copy
 `packages/db/.env.example` if you ever need to recreate it.
 
-**This is a local convenience only.** Staging and production use Neon
+**This is a local convenience only.** Staging and production use Supabase
 (confirmed hosting choice, see `docs/PHASE-0-SPECIFICATION.md` §K/§M) — this
 local cluster is never a deployment target and its credentials are not
 reused anywhere else.
@@ -82,3 +82,33 @@ npm run db:studio      # open Prisma Studio (a local DB browser) against your lo
 
 See `docs/PHASE-0-SPECIFICATION.md` §L for the intended repo layout as more
 workspaces (packages/core, apps/driver-pwa, …) come online.
+
+## Production deployment (Vercel + Supabase)
+
+The app is deployed from this repo's `main` branch via Vercel (connected
+to `github.com/farooqumareng-alt/midwaymover`), using Supabase for
+production Postgres.
+
+**Required Vercel environment variables** (Project Settings → Environment
+Variables — set for Production, and Preview too if preview deployments
+should also work):
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | Supabase **pooled** connection string (Database Settings → Connection string → "Connection pooling", port 6543). Used by the deployed app at runtime (`packages/db/src/client.ts`). |
+| `DIRECT_DATABASE_URL` | Supabase **direct** connection string (port 5432). Used only by `prisma migrate deploy` — see `packages/db/prisma7.config.ts` for why the app and the CLI deliberately use different connections. |
+| `AUTH_SECRET` | Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Never reuse the local dev value. |
+| `MFA_ENCRYPTION_KEY` | Same generation command. Never reuse the local dev value — rotating it would make every enrolled staff account's stored TOTP secret unrecoverable, so treat it as a real secret from day one. |
+
+**Applying migrations to Supabase** — not run automatically on every
+Vercel build (a deliberate choice; auto-running `migrate deploy` on every
+deploy is a real option to revisit, but wasn't chosen silently). Run
+manually when there's a new migration to ship:
+
+```
+DIRECT_DATABASE_URL="<supabase direct connection string>" npm run migrate:deploy --workspace packages/db
+```
+
+(`prisma migrate deploy`, not `migrate dev` — `dev` can generate a new
+migration or prompt interactively, neither of which belongs in a
+production deploy.)

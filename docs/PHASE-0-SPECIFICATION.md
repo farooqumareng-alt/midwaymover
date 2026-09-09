@@ -14,7 +14,7 @@ Repository state at time of writing: `apps/web` scaffold only (see
 - Auth: **self-hosted Auth.js/NextAuth on our own Postgres**, custom TOTP MFA
   for staff/admin.
 - Payments: **Stripe**.
-- Hosting: **Vercel + managed Postgres (Neon)**.
+- Hosting: **Vercel + managed Postgres (Supabase)**.
 - Service area: **multi-state US at launch** (specific states TBD — see §O).
 - Fleet vehicle specs: **placeholder defaults** for `VehicleCapability`,
   explicitly flagged for owner review before go-live (see §G, §O).
@@ -338,7 +338,7 @@ never re-implemented per surface.
 | Object storage | S3-compatible (AWS S3 / Cloudflare R2) | Private buckets, signed URLs only |
 | Auth | Auth.js/NextAuth + Postgres | Confirmed. Custom TOTP MFA for staff |
 | Realtime | Postgres LISTEN/NOTIFY + WebSocket layer, or a managed realtime service | Authenticated per-connection |
-| Hosting | Vercel (web) + Neon (managed Postgres) | Confirmed |
+| Hosting | Vercel (web) + Supabase (managed Postgres) | Confirmed |
 | Error tracking | Sentry (with PII scrubbing) | |
 
 ## N. Testing Strategy
@@ -373,7 +373,12 @@ These are genuine unknowns, not decisions I'll silently make:
 - ~~Auth provider~~ → **Auth.js/NextAuth + our own Postgres**, custom TOTP MFA
   for staff/admin.
 - ~~Payment provider~~ → **Stripe**.
-- ~~Hosting/infra preference~~ → **Vercel + managed Postgres (Neon)**.
+- ~~Hosting/infra preference~~ → **Vercel + managed Postgres (Supabase)**.
+  (Originally Neon during initial Phase 0 discussion; switched to Supabase
+  per owner preference once actual deployment began — noted here rather
+  than silently editing history. Since the app connects to Postgres
+  through the standard `pg` driver, this was a connection-string swap, not
+  an architecture change.)
 - ~~Business accounts at MVP~~ → **required at MVP**: `Organization`,
   `OrganizationMember`, and `CUSTOMER_MANAGER` are in the Phase 1 schema and
   the MVP feature set from day one (see updated §P).
