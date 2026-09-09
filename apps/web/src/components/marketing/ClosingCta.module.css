@@ -1,0 +1,30 @@
+.section {
+  background: var(--navy);
+  color: var(--fg-light);
+}
+
+.inner {
+  padding: 64px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 24px;
+}
+
+.heading {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  max-width: 560px;
+}
+
+@media (min-width: 640px) {
+  .inner {
+    padding: 96px 40px;
+  }
+
+  .heading {
+    font-size: 40px;
+  }
+}

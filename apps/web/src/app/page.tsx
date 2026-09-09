@@ -1,12 +1,27 @@
+import { Header } from "../components/marketing/Header.tsx";
+import { Hero } from "../components/marketing/Hero.tsx";
+import { TrustBar } from "../components/marketing/TrustBar.tsx";
+import { HowItWorks } from "../components/marketing/HowItWorks.tsx";
+import { WhatWeMove } from "../components/marketing/WhatWeMove.tsx";
+import { Security } from "../components/marketing/Security.tsx";
+import { BusinessAccounts } from "../components/marketing/BusinessAccounts.tsx";
+import { ClosingCta } from "../components/marketing/ClosingCta.tsx";
+import { Footer } from "../components/marketing/Footer.tsx";
+
 export default function HomePage() {
   return (
-    <main className="page">
-      <h1>Midway Mover</h1>
-      <p className="tagline">Private. Dedicated. Direct. Secure. Confidential.</p>
-      <p className="note">
-        Local scaffold running — booking, tracking, and dispatch build out in
-        the phases that follow.
-      </p>
-    </main>
+    <>
+      <Header />
+      <main>
+        <Hero />
+        <TrustBar />
+        <HowItWorks />
+        <WhatWeMove />
+        <Security />
+        <BusinessAccounts />
+        <ClosingCta />
+      </main>
+      <Footer />
+    </>
   );
 }

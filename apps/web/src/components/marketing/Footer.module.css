@@ -1,0 +1,44 @@
+.footer {
+  background: var(--navy-darker);
+  color: var(--muted-on-dark);
+}
+
+.inner {
+  padding-top: 32px;
+  padding-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.brandName {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fg-light);
+}
+
+.domain {
+  font-size: 14px;
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-size: 14px;
+}
+
+@media (min-width: 640px) {
+  .inner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
