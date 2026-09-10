@@ -37,9 +37,30 @@ Maps/SMS/email/storage providers are still candidates, not locked — confirm
 with the project owner before wiring credentials (spec §M).
 
 ## Current phase
-**Phase 3 — Authentication & authorization — core done.** Phase 1 (DB
-schema) and Phase 3 are complete; Phase 2 (design system) was skipped for
-now (no UI screens exist yet to need it) and can slot in before Phase 4.
+**Phase 4 — Customer booking — core done.** Phases 1 (DB), 3 (auth), and 4
+(booking) are complete. Phase 2 (design system) was skipped — the
+marketing homepage and booking flow already established the visual
+language, so a separate design-system pass wasn't needed. Live in
+production: homepage, magic-link/staff auth, and the 3-step booking flow.
+
+Booking: `/book` (3 steps — Where & When, What's Moving, Review & Book —
+`apps/web/src/components/booking/`) calls `POST /api/quotes` then
+`POST /api/bookings`. Server-side logic lives in
+`apps/web/src/lib/booking.ts`; vehicle-matching, pricing, and distance
+estimation are pure functions in `packages/core`
+(`vehicle-matching.ts`/`pricing.ts`/`distance.ts`). Distance is a
+straight-line ZIP-centroid estimate (US Census Gazetteer data bundled in
+`packages/core/src/data/zip-centroids.json`) — a deliberate stand-in for a
+real Maps provider (owner-confirmed), not a permanent choice. Tax is
+hardcoded to $0 — real transportation-tax calculation needs a tax API or
+legal guidance, not a guess (see pricing.ts's header comment). Booking
+stops at `AWAITING_PAYMENT`; it does not fabricate a payment success —
+Phase 9 (Stripe) is what moves a shipment to `CONFIRMED`.
+
+Fleet/pricing seed data (`packages/db/prisma/seed.ts`, `needsReview: true`
+on every row per the placeholder-fleet decision) has been run against
+both local dev and production Supabase — `npm run seed --workspace
+packages/db` regenerates it if the DB is ever reset.
 
 Auth: Auth.js v5 (beta — the only version supporting the App Router
 natively) with database sessions (server-revocable). CUSTOMER/
@@ -54,11 +75,10 @@ get the current caller's identity server-side — never trust a
 client-supplied id.
 
 Real HTTP round-trip tested against a running dev server (not just
-typechecked): staff login with/without MFA, MFA enrollment, rate limiting
-(confirmed blocking after the configured attempt count), server-side
-session revocation (deleting the DB row instantly invalidates a live
-cookie), disabled-account rejection, and the full magic-link flow
-(auto-creates a CUSTOMER-role user, single-use token, session issued).
+typechecked) for both phases — see the Phase 3/4 commit messages for the
+full list (staff login/MFA/rate-limiting/session-revocation, magic link,
+quote creation + fail-safe paths, idempotent booking confirmation
+including a genuine concurrent double-click test).
 
-See `docs/PHASE-0-SPECIFICATION.md` and `docs/DEV-SETUP.md`. Phase 4
-(customer booking) is next.
+See `docs/PHASE-0-SPECIFICATION.md` and `docs/DEV-SETUP.md`. Phase 5
+(customer tracking) is next.

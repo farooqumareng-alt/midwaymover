@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import styles from "./Header.module.css";
 
 const NAV_LINKS = [
@@ -27,9 +28,9 @@ export function Header() {
         </nav>
 
         <div className={styles.actions}>
-          <button type="button" className="btnPrimary">
+          <Link href="/book" className="btnPrimary">
             Get a Quote
-          </button>
+          </Link>
           <button
             type="button"
             className={styles.menuToggle}

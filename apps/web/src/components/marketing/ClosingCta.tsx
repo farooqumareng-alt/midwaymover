@@ -1,3 +1,4 @@
+import Link from "next/link";
 import styles from "./ClosingCta.module.css";
 
 export function ClosingCta() {
@@ -7,9 +8,9 @@ export function ClosingCta() {
         <h2 className={styles.heading}>
           Ready to book your first dedicated pickup?
         </h2>
-        <button type="button" className="btnPrimary">
+        <Link href="/book" className="btnPrimary">
           Get a Quote
-        </button>
+        </Link>
       </div>
     </div>
   );

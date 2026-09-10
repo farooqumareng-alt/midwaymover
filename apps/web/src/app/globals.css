@@ -130,6 +130,103 @@ svg {
   font-weight: 600;
 }
 
+.btnPrimary:disabled,
+.btnGhostDark:disabled,
+.btnGhostLight:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Shared form primitives (booking flow, and anything else that needs a form) */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.input {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--hairline-light);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 16px;
+  font-family: inherit;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.input.hasError {
+  border-color: #b3432f;
+}
+
+.errorText {
+  font-size: 13px;
+  color: #b3432f;
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+@media (min-width: 640px) {
+  .fieldGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fieldGridFull {
+    grid-column: 1 / -1;
+  }
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.checkboxRow input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+
+.optionCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 88px;
+  padding: 16px;
+  border: 1px solid var(--hairline-light);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.optionCard[aria-pressed="true"] {
+  border-color: var(--accent);
+  border-width: 2px;
+  background: color-mix(in srgb, var(--accent) 8%, #fff);
+}
+
 .visuallyHidden {
   position: absolute;
   width: 1px;

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import styles from "./Hero.module.css";
 
 export function Hero() {
@@ -13,9 +14,9 @@ export function Hero() {
           consolidation, no unnecessary stops.
         </p>
         <div className={styles.actions}>
-          <button type="button" className="btnPrimary">
+          <Link href="/book" className="btnPrimary">
             Get a Quote
-          </button>
+          </Link>
           <a href="#how-it-works" className="btnGhostDark">
             See how it works
           </a>

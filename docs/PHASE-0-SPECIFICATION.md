@@ -332,7 +332,7 @@ never re-implemented per surface.
 | Concern | Candidate | Notes |
 |---|---|---|
 | Payments | Stripe | Tokenized methods, webhooks, PCI SAQ-A scope |
-| Maps/geocoding | Google Maps Platform or Mapbox | Server-proxied key usage where possible |
+| Maps/geocoding | Google Maps Platform or Mapbox | Still not locked. Phase 4 shipped with plain address fields (no autocomplete) and a free, no-key straight-line ZIP-centroid distance estimate (`packages/core/src/distance.ts`, US Census Gazetteer data) instead — owner-confirmed as the Phase 4 approach, real provider integration deferred and additive, not a rearchitecture |
 | SMS | Twilio (or similar) | Generic notification text only, no confidential detail |
 | Transactional email | Postmark/SendGrid/SES | Booking/receipt/POD-link email |
 | Object storage | S3-compatible (AWS S3 / Cloudflare R2) | Private buckets, signed URLs only |
@@ -459,9 +459,9 @@ Phase 1 (database design) may now proceed on this document.
 |---|---|---|
 | 0 | Requirements + threat model | **Locked** — this document |
 | 1 | Database architecture + state machine (formal schema/migrations) | **Done** — `packages/db` |
-| 2 | Design system | Not started — deferred until real UI screens exist to need it (Phase 4+) |
+| 2 | Design system | Skipped — the marketing homepage (§ mockup) and booking flow established the visual language; a dedicated pass wasn't needed |
 | 3 | Authentication + authorization | **Core done** — `apps/web/src/auth.ts`, `src/lib/staff-auth.ts`, `src/lib/mfa-enrollment.ts`, `packages/core` |
-| 4 | Customer booking | Not started |
+| 4 | Customer booking | **Core done** — `/book`, `apps/web/src/lib/booking.ts`, `packages/core` (vehicle-matching/pricing/distance) |
 | 5 | Customer tracking | Not started |
 | 6 | Driver workflow | Not started |
 | 7 | Chain of custody | Not started |

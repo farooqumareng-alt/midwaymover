@@ -78,6 +78,7 @@ emailed; production refuses to start without a real provider configured.
 npm run db:migrate    # apply pending migrations to your local DB (prisma migrate dev)
 npm run db:generate    # regenerate the Prisma client from schema.prisma
 npm run db:studio      # open Prisma Studio (a local DB browser) against your local DB
+npm run seed --workspace packages/db   # seed placeholder Vehicle/VehicleCapability/PricingRule rows — needed before /book will quote anything
 ```
 
 See `docs/PHASE-0-SPECIFICATION.md` §L for the intended repo layout as more
