@@ -37,11 +37,22 @@ Maps/SMS/email/storage providers are still candidates, not locked — confirm
 with the project owner before wiring credentials (spec §M).
 
 ## Current phase
-**Phase 4 — Customer booking — core done.** Phases 1 (DB), 3 (auth), and 4
-(booking) are complete. Phase 2 (design system) was skipped — the
-marketing homepage and booking flow already established the visual
-language, so a separate design-system pass wasn't needed. Live in
-production: homepage, magic-link/staff auth, and the 3-step booking flow.
+**Phase 5 — Customer tracking — core done.** Phases 1 (DB), 3 (auth), 4
+(booking), and 5 (tracking) are complete. Phase 2 (design system) was
+skipped — the marketing homepage and booking flow already established the
+visual language, so a separate design-system pass wasn't needed. Live in
+production: homepage, magic-link/staff auth, the 3-step booking flow, and
+public tracking.
+
+Tracking: `/track/[token]` (`apps/web/src/app/track/[token]/page.tsx` +
+`apps/web/src/lib/tracking.ts`) — access is by opaque `trackingToken`
+only, never by internal shipment id. Deliberately coarse (city/state, a
+5-stage friendly status, no pricing/exact address/contact/driver info) on
+the same confidential-by-default reasoning as everywhere else, since a
+tracking link can be forwarded beyond whoever booked it. `noindex`,
+`force-dynamic` (never cached across tokens), rate-limited, and checks
+`trackingRevokedAt`. The booking confirmation response/UI now surfaces the
+tracking link (it didn't in Phase 4).
 
 Booking: `/book` (3 steps — Where & When, What's Moving, Review & Book —
 `apps/web/src/components/booking/`) calls `POST /api/quotes` then
@@ -75,10 +86,11 @@ get the current caller's identity server-side — never trust a
 client-supplied id.
 
 Real HTTP round-trip tested against a running dev server (not just
-typechecked) for both phases — see the Phase 3/4 commit messages for the
-full list (staff login/MFA/rate-limiting/session-revocation, magic link,
-quote creation + fail-safe paths, idempotent booking confirmation
-including a genuine concurrent double-click test).
+typechecked) for every phase so far — see the Phase 3/4/5 commit messages
+for the full list (staff login/MFA/rate-limiting/session-revocation,
+magic link, quote creation + fail-safe paths, idempotent booking
+confirmation including a genuine concurrent double-click test, tracking
+page content/revocation/not-found).
 
-See `docs/PHASE-0-SPECIFICATION.md` and `docs/DEV-SETUP.md`. Phase 5
-(customer tracking) is next.
+See `docs/PHASE-0-SPECIFICATION.md` and `docs/DEV-SETUP.md`. Phase 6
+(driver PWA) is next.

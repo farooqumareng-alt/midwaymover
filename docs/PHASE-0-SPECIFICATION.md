@@ -462,7 +462,7 @@ Phase 1 (database design) may now proceed on this document.
 | 2 | Design system | Skipped — the marketing homepage (§ mockup) and booking flow established the visual language; a dedicated pass wasn't needed |
 | 3 | Authentication + authorization | **Core done** — `apps/web/src/auth.ts`, `src/lib/staff-auth.ts`, `src/lib/mfa-enrollment.ts`, `packages/core` |
 | 4 | Customer booking | **Core done** — `/book`, `apps/web/src/lib/booking.ts`, `packages/core` (vehicle-matching/pricing/distance) |
-| 5 | Customer tracking | Not started |
+| 5 | Customer tracking | **Core done** — `/track/[token]`, `apps/web/src/lib/tracking.ts` |
 | 6 | Driver workflow | Not started |
 | 7 | Chain of custody | Not started |
 | 8 | Dispatch | Not started |

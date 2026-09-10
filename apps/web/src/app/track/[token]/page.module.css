@@ -1,0 +1,122 @@
+.page {
+  min-height: 100dvh;
+  background: var(--off-white);
+}
+
+.header {
+  background: var(--navy);
+  color: var(--fg-light);
+  padding: 40px 0;
+}
+
+.eyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.statusLabel {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 8px;
+}
+
+.main {
+  padding: 40px 0 80px;
+}
+
+.card {
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.stageTrack {
+  display: flex;
+  align-items: center;
+}
+
+.stageDot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  position: relative;
+}
+
+.stageCircle {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--hairline-light);
+  border: 2px solid var(--hairline-light);
+  z-index: 1;
+}
+
+.stageDot[data-done="true"] .stageCircle {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.stageLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-on-light);
+  text-align: center;
+}
+
+.stageDot[data-done="true"] .stageLabel {
+  color: var(--ink);
+}
+
+.stageLine {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--hairline-light);
+  z-index: 0;
+}
+
+.stageDot[data-done="true"] .stageLine {
+  background: var(--accent);
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid var(--hairline-light);
+  border-radius: 6px;
+}
+
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 15px;
+}
+
+.summaryLabel {
+  color: var(--muted-on-light);
+}
+
+.summaryValue {
+  font-weight: 600;
+  text-align: right;
+}
+
+.notFound {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

@@ -52,6 +52,7 @@ export async function POST(request: Request): Promise<Response> {
       return NextResponse.json({
         status: "success",
         shipmentId: result.shipmentId,
+        trackingToken: result.trackingToken,
       });
     case "expired":
       return NextResponse.json(

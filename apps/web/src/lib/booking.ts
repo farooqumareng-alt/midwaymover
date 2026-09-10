@@ -291,8 +291,13 @@ export interface ConfirmBookingInput {
 }
 
 export type ConfirmBookingResult =
-  | { status: "success"; shipmentId: string; shipmentStatus: "AWAITING_PAYMENT" }
-  | { status: "alreadyConfirmed"; shipmentId: string }
+  | {
+      status: "success";
+      shipmentId: string;
+      shipmentStatus: "AWAITING_PAYMENT";
+      trackingToken: string;
+    }
+  | { status: "alreadyConfirmed"; shipmentId: string; trackingToken: string }
   | { status: "expired" }
   | { status: "notFound" };
 
@@ -304,11 +309,29 @@ export async function confirmBooking(
   input: ConfirmBookingInput,
   actor: Actor | null,
 ): Promise<ConfirmBookingResult> {
-  const quote = await db.quote.findUnique({ where: { id: input.quoteId } });
+  const quote = await db.quote.findUnique({
+    where: { id: input.quoteId },
+    include: {
+      shipment: { select: { id: true, customerId: true, trackingToken: true } },
+    },
+  });
   if (!quote) return { status: "notFound" };
+  const shipment = quote.shipment;
+
+  // Ownership check: if this quote belongs to a customer/org, only that
+  // same actor may confirm it. A guest-owned quote (customerId null) can
+  // be confirmed by anyone holding the quoteId, same as a guest checkout
+  // link normally works.
+  if (shipment.customerId && shipment.customerId !== actor?.customerProfileId) {
+    return { status: "notFound" }; // don't leak existence to the wrong caller
+  }
 
   if (quote.status === "CONSUMED") {
-    return { status: "alreadyConfirmed", shipmentId: quote.shipmentId };
+    return {
+      status: "alreadyConfirmed",
+      shipmentId: shipment.id,
+      trackingToken: shipment.trackingToken,
+    };
   }
 
   if (quote.status === "EXPIRED" || quote.expiresAt < new Date()) {
@@ -318,17 +341,6 @@ export async function confirmBooking(
     return { status: "expired" };
   }
 
-  // Ownership check: if this quote belongs to a customer/org, only that
-  // same actor may confirm it. A guest-owned quote (customerId null) can
-  // be confirmed by anyone holding the quoteId, same as a guest checkout
-  // link normally works.
-  const shipment = await db.shipment.findUniqueOrThrow({
-    where: { id: quote.shipmentId },
-  });
-  if (shipment.customerId && shipment.customerId !== actor?.customerProfileId) {
-    return { status: "notFound" }; // don't leak existence to the wrong caller
-  }
-
   // Atomic, race-safe consume: only one caller ever flips ACTIVE -> CONSUMED.
   const consumed = await db.quote.updateMany({
     where: { id: quote.id, status: "ACTIVE" },
@@ -336,12 +348,16 @@ export async function confirmBooking(
   });
   if (consumed.count === 0) {
     // Lost the race to a concurrent request — that one already handled it.
-    return { status: "alreadyConfirmed", shipmentId: quote.shipmentId };
+    return {
+      status: "alreadyConfirmed",
+      shipmentId: shipment.id,
+      trackingToken: shipment.trackingToken,
+    };
   }
 
   await db.$transaction([
     db.shipment.update({
-      where: { id: quote.shipmentId },
+      where: { id: shipment.id },
       data: {
         status: "AWAITING_PAYMENT",
         guestContactName: actor ? null : input.contactName,
@@ -350,13 +366,18 @@ export async function confirmBooking(
       },
     }),
     db.shipmentStatusEvent.create({
-      data: { shipmentId: quote.shipmentId, fromStatus: "QUOTED", toStatus: "AWAITING_PAYMENT" },
+      data: { shipmentId: shipment.id, fromStatus: "QUOTED", toStatus: "AWAITING_PAYMENT" },
     }),
     db.shipmentStop.updateMany({
-      where: { shipmentId: quote.shipmentId },
+      where: { shipmentId: shipment.id },
       data: { contactName: input.contactName, contactPhone: input.contactPhone },
     }),
   ]);
 
-  return { status: "success", shipmentId: quote.shipmentId, shipmentStatus: "AWAITING_PAYMENT" };
+  return {
+    status: "success",
+    shipmentId: shipment.id,
+    shipmentStatus: "AWAITING_PAYMENT",
+    trackingToken: shipment.trackingToken,
+  };
 }

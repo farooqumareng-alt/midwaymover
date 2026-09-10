@@ -37,6 +37,7 @@ export function StepReviewBook({ form, onChange, onBack }: Props) {
   >("idle");
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
+  const [trackingToken, setTrackingToken] = useState<string | null>(null);
   const requestedRef = useRef(false);
 
   useEffect(() => {
@@ -125,6 +126,8 @@ export function StepReviewBook({ form, onChange, onBack }: Props) {
         setBookingState("error");
         return;
       }
+      const successBody = await res.json();
+      setTrackingToken(successBody.trackingToken ?? null);
       setBookingState("success");
     } catch {
       setBookingError("Could not reach the server. Check your connection and try again.");
@@ -141,6 +144,11 @@ export function StepReviewBook({ form, onChange, onBack }: Props) {
           been sent to {form.contactEmail}. Our team will follow up to finalize payment
           and scheduling.
         </p>
+        {trackingToken && (
+          <a href={`/track/${trackingToken}`} className="btnPrimary" style={{ alignSelf: "flex-start" }}>
+            Track your shipment
+          </a>
+        )}
       </div>
     );
   }
