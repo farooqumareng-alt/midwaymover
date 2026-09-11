@@ -38,6 +38,8 @@ export function StepReviewBook({ form, onChange, onBack }: Props) {
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
   const [trackingToken, setTrackingToken] = useState<string | null>(null);
+  const [pickupCode, setPickupCode] = useState<string | null>(null);
+  const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
   const requestedRef = useRef(false);
 
   useEffect(() => {
@@ -128,6 +130,8 @@ export function StepReviewBook({ form, onChange, onBack }: Props) {
       }
       const successBody = await res.json();
       setTrackingToken(successBody.trackingToken ?? null);
+      setPickupCode(successBody.pickupCode ?? null);
+      setDeliveryCode(successBody.deliveryCode ?? null);
       setBookingState("success");
     } catch {
       setBookingError("Could not reach the server. Check your connection and try again.");
@@ -140,10 +144,50 @@ export function StepReviewBook({ form, onChange, onBack }: Props) {
       <div className={styles.stepBody}>
         <h2 className={styles.sectionTitle}>You&rsquo;re booked</h2>
         <p style={{ color: "var(--muted-on-light)", fontSize: 16, lineHeight: 1.6 }}>
-          We&rsquo;ve reserved a dedicated vehicle for your shipment. A confirmation has
-          been sent to {form.contactEmail}. Our team will follow up to finalize payment
-          and scheduling.
+          We&rsquo;ve reserved a dedicated vehicle for your shipment. Our team will
+          follow up at {form.contactEmail} to finalize payment and scheduling.
         </p>
+
+        {(pickupCode || deliveryCode) && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              padding: 20,
+              background: "#fff",
+              border: "1px solid var(--hairline-light)",
+              borderRadius: 6,
+            }}
+          >
+            <p style={{ fontSize: 14, fontWeight: 600 }}>
+              Save these codes — they won&rsquo;t be shown again
+            </p>
+            {pickupCode && (
+              <div>
+                <p style={{ fontSize: 13, color: "var(--muted-on-light)" }}>
+                  Pickup code — give this to the driver when your cargo is
+                  picked up
+                </p>
+                <p style={{ fontSize: 24, fontWeight: 700, letterSpacing: "0.1em" }}>
+                  {pickupCode}
+                </p>
+              </div>
+            )}
+            {deliveryCode && (
+              <div>
+                <p style={{ fontSize: 13, color: "var(--muted-on-light)" }}>
+                  Delivery code — share this with whoever will receive the
+                  shipment
+                </p>
+                <p style={{ fontSize: 24, fontWeight: 700, letterSpacing: "0.1em" }}>
+                  {deliveryCode}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {trackingToken && (
           <a href={`/track/${trackingToken}`} className="btnPrimary" style={{ alignSelf: "flex-start" }}>
             Track your shipment

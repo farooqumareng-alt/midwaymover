@@ -1,0 +1,86 @@
+.page {
+  min-height: 100dvh;
+  background: var(--off-white);
+}
+
+.header {
+  background: var(--navy);
+  color: var(--fg-light);
+  padding: 24px 0;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.confidentialBanner {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: rgba(192, 138, 63, 0.15);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--fg-light);
+}
+
+.main {
+  padding: 24px 0 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.card {
+  padding: 20px;
+  background: #fff;
+  border: 1px solid var(--hairline-light);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 15px;
+}
+
+.rowLabel {
+  color: var(--muted-on-light);
+}
+
+.rowValue {
+  font-weight: 600;
+  text-align: right;
+}
+
+.bigButton {
+  min-height: 56px;
+  font-size: 18px;
+}
+
+.pinInput {
+  min-height: 56px;
+  font-size: 28px;
+  text-align: center;
+  letter-spacing: 0.3em;
+}
+
+.matchButtons {
+  display: flex;
+  gap: 12px;
+}
+
+.matchButtons > * {
+  flex: 1;
+  min-height: 56px;
+}
+
+.destructiveButton {
+  background: #fff;
+  border: 1px solid #b3432f;
+  color: #b3432f;
+}

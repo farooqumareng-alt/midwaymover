@@ -45,7 +45,7 @@ export function StaffLogin() {
         return;
       }
       if (data.status === "success") {
-        router.push("/dispatch");
+        router.push("/staff");
         return;
       }
       if (data.status === "mfaCodeRequired") {
@@ -81,7 +81,7 @@ export function StaffLogin() {
         return;
       }
       if (data.status === "success") {
-        router.push("/dispatch");
+        router.push("/staff");
       }
     } finally {
       setSubmitting(false);

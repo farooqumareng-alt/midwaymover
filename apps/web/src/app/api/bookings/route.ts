@@ -48,6 +48,13 @@ export async function POST(request: Request): Promise<Response> {
 
   switch (result.status) {
     case "success":
+      return NextResponse.json({
+        status: "success",
+        shipmentId: result.shipmentId,
+        trackingToken: result.trackingToken,
+        pickupCode: result.pickupCode,
+        deliveryCode: result.deliveryCode,
+      });
     case "alreadyConfirmed":
       return NextResponse.json({
         status: "success",

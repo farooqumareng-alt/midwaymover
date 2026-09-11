@@ -13,9 +13,18 @@ import {
   matchVehicle,
   calculatePrice,
   estimateDistanceMiles,
+  generateNumericCode,
+  hashVerificationCode,
   type PriceBreakdown,
 } from "@midwaymover/core";
 import type { Actor } from "@midwaymover/core";
+
+// Verification codes are valid for the whole shipment lifecycle, not
+// literally minutes — pickup can be scheduled days out. Generous but
+// bounded, per § Pickup: "short-lived, single-use" (single-use is the
+// load-bearing property; "short-lived" here means "doesn't outlive a
+// reasonable shipment window," not "expires in 10 minutes").
+const VERIFICATION_CODE_TTL_DAYS = 14;
 
 const QUOTE_TTL_MINUTES = 30;
 
@@ -296,6 +305,13 @@ export type ConfirmBookingResult =
       shipmentId: string;
       shipmentStatus: "AWAITING_PAYMENT";
       trackingToken: string;
+      /// Shown ONCE, here, and never again — there is no SMS/email
+      /// provider yet (spec §M) to (re-)send these, so the customer must
+      /// relay them to whoever hands off/receives the cargo. Absent on
+      /// an idempotent replay (see below) since they were already shown
+      /// on the original confirming request.
+      pickupCode: string;
+      deliveryCode: string;
     }
   | { status: "alreadyConfirmed"; shipmentId: string; trackingToken: string }
   | { status: "expired" }
@@ -355,6 +371,14 @@ export async function confirmBooking(
     };
   }
 
+  const pickupCode = generateNumericCode(6);
+  const deliveryCode = generateNumericCode(6);
+  const [pickupCodeHash, deliveryCodeHash] = await Promise.all([
+    hashVerificationCode(pickupCode),
+    hashVerificationCode(deliveryCode),
+  ]);
+  const codeExpiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_DAYS * 24 * 60 * 60 * 1000);
+
   await db.$transaction([
     db.shipment.update({
       where: { id: shipment.id },
@@ -372,6 +396,22 @@ export async function confirmBooking(
       where: { shipmentId: shipment.id },
       data: { contactName: input.contactName, contactPhone: input.contactPhone },
     }),
+    db.pickupVerification.create({
+      data: {
+        shipmentId: shipment.id,
+        method: "PIN",
+        codeHash: pickupCodeHash,
+        expiresAt: codeExpiresAt,
+      },
+    }),
+    db.deliveryVerification.create({
+      data: {
+        shipmentId: shipment.id,
+        method: "PIN",
+        codeHash: deliveryCodeHash,
+        expiresAt: codeExpiresAt,
+      },
+    }),
   ]);
 
   return {
@@ -379,5 +419,7 @@ export async function confirmBooking(
     shipmentId: shipment.id,
     shipmentStatus: "AWAITING_PAYMENT",
     trackingToken: shipment.trackingToken,
+    pickupCode,
+    deliveryCode,
   };
 }

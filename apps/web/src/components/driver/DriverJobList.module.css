@@ -1,0 +1,51 @@
+.page {
+  min-height: 100dvh;
+  background: var(--off-white);
+}
+
+.header {
+  background: var(--navy);
+  color: var(--fg-light);
+  padding: 24px 0;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.main {
+  padding: 20px 0 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jobCard {
+  display: block;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid var(--hairline-light);
+  border-radius: 8px;
+}
+
+.jobRoute {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.jobMeta {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--muted-on-light);
+}
+
+.jobStatus {
+  display: inline-flex;
+  margin-top: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--hairline-light);
+}

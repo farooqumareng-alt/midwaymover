@@ -37,17 +37,38 @@ Maps/SMS/email/storage providers are still candidates, not locked — confirm
 with the project owner before wiring credentials (spec §M).
 
 ## Current phase
-**Phase 8 (minimal slice) — Dispatch — core done**, pulled ahead of Phase 6
-(driver PWA) because the driver workflow needs a real assigned shipment to
-work against. Phases 1 (DB), 3 (auth), 4 (booking), 5 (tracking), and this
-Phase 8 slice are complete. Phase 2 (design system) was skipped — the
-marketing homepage and booking flow already established the visual
-language. Live in production: homepage, magic-link/staff auth, the 3-step
-booking flow, and public tracking. Dispatch (`/dispatch`, `/staff/login`)
-is deployed but **has no real staff accounts on production** — seeding
-fake admin/driver credentials onto the live site wasn't worth the standing
-risk when no real staff exist yet; it's verified locally instead (see
-below).
+**Phase 6 — Driver PWA — core done.** Phases 1 (DB), 3 (auth), 4
+(booking), 5 (tracking), the Phase 8 minimal dispatch slice, and now
+Phase 6 are complete. Phase 2 (design system) was skipped — the marketing
+homepage and booking flow already established the visual language. Live
+in production: homepage, magic-link/staff auth, the 3-step booking flow,
+and public tracking. Dispatch/driver surfaces (`/dispatch`,
+`/staff/login`, `/driver`) are deployed but **have no real staff accounts
+on production** — seeding fake admin/driver credentials onto the live
+site wasn't worth the standing risk when no real staff exist yet; both
+are fully verified locally instead (see below).
+
+Driver PWA: `/driver` (job list) → `/driver/jobs/[id]` (the 4-stage
+workflow: Accept → Verify Pickup → Transport → Verify Delivery,
+`apps/web/src/lib/driver.ts` + `apps/web/src/components/driver/`). Every
+action requires the actor be the CURRENTLY assigned driver for that
+specific shipment (`packages/core`'s `isAssignedDriver`, built in Phase 3,
+had no caller until now) and the shipment be in the exact expected state —
+never a client-set status. Two scope boundaries handled honestly rather
+than faked: PIN verification only (no QR/signature — no object storage
+exists yet for a captured image, §M not chosen) and no POD row created on
+delivery (same storage gap — a real document/photo record is Phase 11
+scope). No customer notification or billing trigger on delivery either
+(Phase 10/9 don't exist yet). No GPS cross-check on "arrived" actions —
+driver-attested only, deferred to Phase 7.
+
+Pickup/delivery verification codes are generated in `confirmBooking()`
+(`apps/web/src/lib/booking.ts`) and shown ONCE on the booking success
+screen — there's no SMS/email provider yet (Phase 10) to (re-)send them,
+so the customer relays them to whoever hands off/receives the cargo. This
+is a real, defensible MVP design, not a shortcut, but worth remembering
+when Phase 10 lands (codes should probably move to an actual
+notification then, not stay screen-only).
 
 Dispatch: `/staff/login` (new — there was no browser UI for staff auth
 before this, only the API tested via curl in Phase 3) leads to
@@ -106,16 +127,20 @@ get the current caller's identity server-side — never trust a
 client-supplied id.
 
 Real HTTP round-trip tested against a running dev server (not just
-typechecked) for every phase so far — see the Phase 3/4/5/8 commit
-messages for the full list (staff login/MFA/rate-limiting/
-session-revocation, magic link, quote creation + fail-safe paths,
-idempotent booking confirmation including a genuine concurrent
-double-click test, tracking page content/revocation/not-found, and — for
-this dispatch slice — a full real login-through-MFA session used to
-override-confirm payment and assign a driver+vehicle, with the resulting
-status history/chain-of-custody/audit rows all confirmed directly in
-Postgres, plus the vehicle-not-reviewed and already-assigned rejections).
+typechecked) for every phase so far — see the Phase 3/4/5/8/6 commit
+messages for the full list. For the driver PWA specifically: booked a
+real shipment, captured its real pickup/delivery codes from the booking
+response, ran the complete 8-action lifecycle as a real logged-in driver
+(wrong pickup code rejected before the right one was accepted), and
+confirmed in Postgres afterward — 13-row status history from QUOTED to
+DELIVERED with actor ids on every driver-attributed transition, the exact
+9-event chain-of-custody sequence the spec describes, and both
+verification rows consumed with correct attempt counts. Also verified
+live: actions rejected once a shipment moves past their stage, and — with
+a genuine second driver account — that driver B cannot see, open, or act
+on driver A's assigned job (404 at both the API and the page).
 
-See `docs/PHASE-0-SPECIFICATION.md` and `docs/DEV-SETUP.md`. Phase 6
-(driver PWA) is next — it now has a real `ASSIGNED` shipment to work
-against.
+See `docs/PHASE-0-SPECIFICATION.md` and `docs/DEV-SETUP.md`. Phase 7
+(chain of custody) is next — most of its data model already exists and is
+being written to; what's missing is a dedicated view of it (e.g. for
+dispatch/customer) and any real-time/GPS layer.
