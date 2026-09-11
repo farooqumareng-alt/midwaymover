@@ -1,0 +1,41 @@
+.page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--navy);
+  padding: 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 32px;
+  background: var(--off-white);
+  border-radius: 8px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--muted-on-light);
+  margin-top: -12px;
+}
+
+.secretBox {
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--hairline-light);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 14px;
+  word-break: break-all;
+}

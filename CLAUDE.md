@@ -37,12 +37,32 @@ Maps/SMS/email/storage providers are still candidates, not locked — confirm
 with the project owner before wiring credentials (spec §M).
 
 ## Current phase
-**Phase 5 — Customer tracking — core done.** Phases 1 (DB), 3 (auth), 4
-(booking), and 5 (tracking) are complete. Phase 2 (design system) was
-skipped — the marketing homepage and booking flow already established the
-visual language, so a separate design-system pass wasn't needed. Live in
-production: homepage, magic-link/staff auth, the 3-step booking flow, and
-public tracking.
+**Phase 8 (minimal slice) — Dispatch — core done**, pulled ahead of Phase 6
+(driver PWA) because the driver workflow needs a real assigned shipment to
+work against. Phases 1 (DB), 3 (auth), 4 (booking), 5 (tracking), and this
+Phase 8 slice are complete. Phase 2 (design system) was skipped — the
+marketing homepage and booking flow already established the visual
+language. Live in production: homepage, magic-link/staff auth, the 3-step
+booking flow, and public tracking. Dispatch (`/dispatch`, `/staff/login`)
+is deployed but **has no real staff accounts on production** — seeding
+fake admin/driver credentials onto the live site wasn't worth the standing
+risk when no real staff exist yet; it's verified locally instead (see
+below).
+
+Dispatch: `/staff/login` (new — there was no browser UI for staff auth
+before this, only the API tested via curl in Phase 3) leads to
+`/dispatch` (DISPATCHER/ADMIN + MFA-verified only, checked server-side in
+the page itself, not just hidden nav). `apps/web/src/lib/dispatch.ts` has
+three audited actions: `overrideConfirmPayment` (since Phase 9/Stripe
+doesn't exist yet — a real, honestly-labeled manual override for e.g. an
+invoiced business account, never a fabricated payment success; no Payment
+row is created), `assignDriver` (blocked if the vehicle's fleet capability
+is still `needsReview: true` — this is the enforcement point for the
+placeholder-fleet gate that Phase 4 only flagged but never actually
+blocked on), and `reviewVehicleCapability` (ADMIN-only, marks a fleet
+class's specs as human-reviewed). `packages/db/prisma/seed-staff.ts`
+seeds local-only test ADMIN/DRIVER accounts (dev convenience, standing in
+for real admin user-provisioning, which doesn't have a UI yet either).
 
 Tracking: `/track/[token]` (`apps/web/src/app/track/[token]/page.tsx` +
 `apps/web/src/lib/tracking.ts`) — access is by opaque `trackingToken`
@@ -86,11 +106,16 @@ get the current caller's identity server-side — never trust a
 client-supplied id.
 
 Real HTTP round-trip tested against a running dev server (not just
-typechecked) for every phase so far — see the Phase 3/4/5 commit messages
-for the full list (staff login/MFA/rate-limiting/session-revocation,
-magic link, quote creation + fail-safe paths, idempotent booking
-confirmation including a genuine concurrent double-click test, tracking
-page content/revocation/not-found).
+typechecked) for every phase so far — see the Phase 3/4/5/8 commit
+messages for the full list (staff login/MFA/rate-limiting/
+session-revocation, magic link, quote creation + fail-safe paths,
+idempotent booking confirmation including a genuine concurrent
+double-click test, tracking page content/revocation/not-found, and — for
+this dispatch slice — a full real login-through-MFA session used to
+override-confirm payment and assign a driver+vehicle, with the resulting
+status history/chain-of-custody/audit rows all confirmed directly in
+Postgres, plus the vehicle-not-reviewed and already-assigned rejections).
 
 See `docs/PHASE-0-SPECIFICATION.md` and `docs/DEV-SETUP.md`. Phase 6
-(driver PWA) is next.
+(driver PWA) is next — it now has a real `ASSIGNED` shipment to work
+against.

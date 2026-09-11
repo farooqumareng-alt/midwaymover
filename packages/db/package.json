@@ -16,6 +16,7 @@
     "format": "prisma format",
     "studio": "prisma studio",
     "seed": "node --experimental-strip-types --env-file=.env prisma/seed.ts",
+    "seed:staff": "node --experimental-strip-types --env-file=.env prisma/seed-staff.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

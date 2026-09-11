@@ -1,0 +1,90 @@
+.page {
+  min-height: 100dvh;
+  background: var(--off-white);
+}
+
+.header {
+  background: var(--navy);
+  color: var(--fg-light);
+  padding: 28px 0;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.main {
+  padding: 32px 0 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.card {
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--hairline-light);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cardRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.cardLabel {
+  color: var(--muted-on-light);
+}
+
+.cardValue {
+  font-weight: 600;
+  text-align: right;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--hairline-light);
+}
+
+.badgeWarn {
+  background: #f4d9c9;
+  color: #7a3418;
+}
+
+.shipmentList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.select {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline-light);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.vehicleList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

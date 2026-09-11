@@ -465,7 +465,7 @@ Phase 1 (database design) may now proceed on this document.
 | 5 | Customer tracking | **Core done** — `/track/[token]`, `apps/web/src/lib/tracking.ts` |
 | 6 | Driver workflow | Not started |
 | 7 | Chain of custody | Not started |
-| 8 | Dispatch | Not started |
+| 8 | Dispatch | **Minimal slice done, pulled ahead of Phase 6** — `/dispatch`, `apps/web/src/lib/dispatch.ts` (payment override, driver assignment, fleet review). Full command center (live map, exceptions UI, customer/vehicle CRUD) still not started |
 | 9 | Payments | Not started |
 | 10 | Notifications | Not started |
 | 11 | POD/documents | Not started |
