@@ -55,6 +55,63 @@ function ActionButton({
   );
 }
 
+function CompleteDeliveryAction({ shipmentId }: { shipmentId: string }) {
+  const router = useRouter();
+  const [sealRequired, setSealRequired] = useState(false);
+  const [observedSeal, setObservedSeal] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    const { ok, data } = await postJson(`/api/driver/jobs/${shipmentId}/complete-delivery`, {
+      observedSealNumber: observedSeal.trim() || null,
+    });
+    setBusy(false);
+    if (data.status === "sealNumberRequired") {
+      setSealRequired(true);
+      return;
+    }
+    if (!ok) {
+      setError(data.error ?? "Could not complete delivery.");
+      // A seal mismatch already moved the shipment to INCIDENT_REPORTED
+      // server-side — refresh so the screen reflects that instead of
+      // staying stuck on this form.
+      router.refresh();
+      return;
+    }
+    router.refresh();
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {sealRequired && (
+        <div>
+          <label className="label" htmlFor="observedSeal">
+            This shipment was sealed at pickup. Enter the seal number you see now
+          </label>
+          <input
+            id="observedSeal"
+            className="input"
+            value={observedSeal}
+            onChange={(e) => setObservedSeal(e.target.value)}
+          />
+        </div>
+      )}
+      {error && <span className="errorText">{error}</span>}
+      <button
+        type="button"
+        className={`btnPrimary ${styles.bigButton}`}
+        onClick={submit}
+        disabled={busy}
+      >
+        {busy ? "Working…" : "Complete Delivery"}
+      </button>
+    </div>
+  );
+}
+
 function CodeVerificationForm({ url, label }: { url: string; label: string }) {
   const router = useRouter();
   const [code, setCode] = useState("");
@@ -100,13 +157,16 @@ function CargoConfirmation({ shipmentId }: { shipmentId: string }) {
   const router = useRouter();
   const [reporting, setReporting] = useState(false);
   const [description, setDescription] = useState("");
+  const [sealNumber, setSealNumber] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function matches() {
     setBusy(true);
     setError(null);
-    const { ok, data } = await postJson(`/api/driver/jobs/${shipmentId}/cargo-matches`);
+    const { ok, data } = await postJson(`/api/driver/jobs/${shipmentId}/cargo-matches`, {
+      sealNumber: sealNumber.trim() || null,
+    });
     setBusy(false);
     if (!ok) {
       setError(data.error ?? "Could not confirm.");
@@ -160,7 +220,18 @@ function CargoConfirmation({ shipmentId }: { shipmentId: string }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div>
+        <label className="label" htmlFor="sealNumber">
+          Seal number (optional — only if this load is sealed)
+        </label>
+        <input
+          id="sealNumber"
+          className="input"
+          value={sealNumber}
+          onChange={(e) => setSealNumber(e.target.value)}
+        />
+      </div>
       {error && <span className="errorText">{error}</span>}
       <div className={styles.matchButtons}>
         <button type="button" className="btnPrimary" onClick={matches} disabled={busy}>
@@ -222,12 +293,7 @@ function StageContent({ job }: { job: DriverJobDetail }) {
         />
       );
     case "DELIVERY_VERIFICATION":
-      return (
-        <ActionButton
-          label="Complete Delivery"
-          url={`/api/driver/jobs/${job.shipmentId}/complete-delivery`}
-        />
-      );
+      return <CompleteDeliveryAction shipmentId={job.shipmentId} />;
     case "DELIVERED":
       return <p style={{ fontWeight: 600 }}>Delivered. Nice work.</p>;
     case "INCIDENT_REPORTED":

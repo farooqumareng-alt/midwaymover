@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import styles from "./DispatchBoard.module.css";
 import type {
   AttentionShipment,
@@ -196,6 +197,41 @@ function ShipmentCard({
           vehicles={vehicles}
         />
       )}
+      <Link href={`/dispatch/shipments/${shipment.id}`} className="btnGhostLight">
+        View chain of custody
+      </Link>
+    </div>
+  );
+}
+
+function CustodyLookup() {
+  const router = useRouter();
+  const [shipmentId, setShipmentId] = useState("");
+
+  function go() {
+    if (!shipmentId.trim()) return;
+    router.push(`/dispatch/shipments/${shipmentId.trim()}`);
+  }
+
+  return (
+    <div>
+      <h2 className={styles.sectionTitle}>Look up a shipment&apos;s custody log</h2>
+      <p style={{ fontSize: 13, color: "var(--muted-on-light)", marginBottom: 8 }}>
+        For a shipment already assigned, in transit, delivered, or under incident review — those
+        don&apos;t show up in the attention list above.
+      </p>
+      <div style={{ display: "flex", gap: 8, maxWidth: 480 }}>
+        <input
+          className="input"
+          placeholder="Shipment ID"
+          value={shipmentId}
+          onChange={(e) => setShipmentId(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && go()}
+        />
+        <button type="button" className="btnGhostLight" onClick={go}>
+          View
+        </button>
+      </div>
     </div>
   );
 }
@@ -255,6 +291,8 @@ export function DispatchBoard({ shipments, drivers, vehicles, isAdmin }: Props) 
       <div className="container">
         <div className={styles.main}>
           {isAdmin && <FleetReview vehicles={vehicles} />}
+
+          <CustodyLookup />
 
           <div>
             <h2 className={styles.sectionTitle}>

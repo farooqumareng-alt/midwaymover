@@ -92,14 +92,16 @@ model User {
   /// hidden in UI. Disabling is itself an audited action (§ Audit Log).
   disabledAt DateTime?
 
-  customerProfile   CustomerProfile?
-  driverProfile     DriverProfile?
-  organizationLinks OrganizationMember[]
-  auditEventsActed  AuditEvent[]         @relation("AuditActor")
-  apiKeys           ApiKey[]
-  notifications     Notification[]
-  accounts          Account[]
-  sessions          Session[]
+  customerProfile    CustomerProfile?
+  driverProfile      DriverProfile?
+  organizationLinks  OrganizationMember[]
+  auditEventsActed   AuditEvent[]          @relation("AuditActor")
+  custodyEventsActed ChainOfCustodyEvent[] @relation("CustodyEventActor")
+  statusEventsActed  ShipmentStatusEvent[] @relation("StatusEventActor")
+  apiKeys            ApiKey[]
+  notifications      Notification[]
+  accounts           Account[]
+  sessions           Session[]
 
   @@index([role])
 }
@@ -538,6 +540,7 @@ model ShipmentStatusEvent {
   createdAt   DateTime        @default(now())
 
   shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  actor    User?    @relation("StatusEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([shipmentId, createdAt])
 }
@@ -719,6 +722,7 @@ model ChainOfCustodyEvent {
   createdAt   DateTime         @default(now())
 
   shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  actor    User?    @relation("CustodyEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([shipmentId, createdAt])
 }

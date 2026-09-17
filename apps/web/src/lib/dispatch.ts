@@ -284,3 +284,130 @@ export async function assignDriver(
 
   return { status: "success" };
 }
+
+// ---------------------------------------------------------------------
+// Chain of custody (docs/PHASE-0-SPECIFICATION.md §7). The events
+// themselves are written throughout the driver/dispatch flows (§I/§J) as
+// they happen — this is the first place anyone can actually SEE that
+// trail. Never exposed to the customer tracking page (§5) — that stays
+// deliberately coarse; this detailed view is staff-only.
+// ---------------------------------------------------------------------
+
+export interface CustodyLogEntry {
+  id: string;
+  eventType: string;
+  actorEmail: string | null;
+  createdAt: Date;
+  metadata: unknown;
+}
+
+export interface StatusHistoryEntry {
+  id: string;
+  fromStatus: string | null;
+  toStatus: string;
+  actorEmail: string | null;
+  createdAt: Date;
+  metadata: unknown;
+}
+
+export interface CustodyLog {
+  shipmentId: string;
+  status: string;
+  custodyEvents: CustodyLogEntry[];
+  statusHistory: StatusHistoryEntry[];
+  seals: { sealNumber: string; status: string; appliedAt: Date; verifiedAt: Date | null }[];
+  incidents: { id: string; status: string; description: string; createdAt: Date }[];
+}
+
+export async function getCustodyLog(
+  shipmentId: string,
+  actor: Actor | null,
+): Promise<CustodyLog | null> {
+  const a = requireActor(actor);
+  requireRole(a, DISPATCH_ROLES);
+  requireMfaIfNeeded(a);
+
+  const shipment = await db.shipment.findUnique({
+    where: { id: shipmentId },
+    include: {
+      custodyEvents: { include: { actor: { select: { email: true } } }, orderBy: { createdAt: "asc" } },
+      statusEvents: { include: { actor: { select: { email: true } } }, orderBy: { createdAt: "asc" } },
+      seals: { orderBy: { appliedAt: "asc" } },
+      incidents: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  if (!shipment) return null;
+
+  return {
+    shipmentId: shipment.id,
+    status: shipment.status,
+    custodyEvents: shipment.custodyEvents.map((e) => ({
+      id: e.id,
+      eventType: e.eventType,
+      actorEmail: e.actor?.email ?? null,
+      createdAt: e.createdAt,
+      metadata: e.metadata,
+    })),
+    statusHistory: shipment.statusEvents.map((e) => ({
+      id: e.id,
+      fromStatus: e.fromStatus,
+      toStatus: e.toStatus,
+      actorEmail: e.actor?.email ?? null,
+      createdAt: e.createdAt,
+      metadata: e.metadata,
+    })),
+    seals: shipment.seals.map((s) => ({
+      sealNumber: s.sealNumber,
+      status: s.status,
+      appliedAt: s.appliedAt,
+      verifiedAt: s.verifiedAt,
+    })),
+    incidents: shipment.incidents.map((i) => ({
+      id: i.id,
+      status: i.status,
+      description: i.description,
+      createdAt: i.createdAt,
+    })),
+  };
+}
+
+export type AddCorrectionResult = { status: "success" } | { status: "notFound" };
+
+/// Never edits an existing event — appends a new CORRECTION event instead
+/// (§ Chain of Custody: "corrections should generally create an
+/// additional correction event instead of silently rewriting history").
+export async function addCustodyCorrection(
+  shipmentId: string,
+  note: string,
+  actor: Actor | null,
+): Promise<AddCorrectionResult> {
+  const a = requireActor(actor);
+  requireRole(a, DISPATCH_ROLES);
+  requireMfaIfNeeded(a);
+
+  const shipment = await db.shipment.findUnique({ where: { id: shipmentId } });
+  if (!shipment) return { status: "notFound" };
+
+  await db.$transaction([
+    db.chainOfCustodyEvent.create({
+      data: {
+        shipmentId,
+        eventType: "CORRECTION",
+        actorUserId: a.userId,
+        metadata: { note },
+      },
+    }),
+    db.auditEvent.create({
+      data: {
+        actorUserId: a.userId,
+        action: "custody_correction_added",
+        resourceType: "Shipment",
+        resourceId: shipmentId,
+        result: "success",
+        metadata: { note },
+      },
+    }),
+  ]);
+
+  return { status: "success" };
+}

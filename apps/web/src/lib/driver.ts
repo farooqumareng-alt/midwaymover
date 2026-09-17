@@ -18,7 +18,13 @@
 // - No customer notification or billing trigger on delivery — Phase 10
 //   (SMS/email) and Phase 9 (payments) don't exist yet.
 // - No GPS/location cross-check on "arrived" actions — driver-attested
-//   only; live location verification is Phase 7 scope.
+//   only; not scoped to a specific numbered phase yet.
+//
+// Phase 7 adds tamper-evident seals (§ Tamper-Evident Seals): applying one
+// is optional (folded into confirmCargoMatches), and a mismatch at
+// delivery (in completeDelivery) does NOT complete the delivery — it
+// raises an incident instead, per "DO NOT silently mark shipment
+// delivered normally."
 import { db, Prisma, type ShipmentStatus, type CustodyEventType } from "@midwaymover/db";
 import {
   requireActor,
@@ -171,7 +177,9 @@ export type DriverActionResult =
   | { status: "notFound" }
   | { status: "invalidState" }
   | { status: "invalidCode" }
-  | { status: "tooManyAttempts" };
+  | { status: "tooManyAttempts" }
+  | { status: "sealNumberRequired" }
+  | { status: "sealMismatch" };
 
 async function transition(
   shipmentId: string,
@@ -289,14 +297,33 @@ export async function verifyPickup(
 export async function confirmCargoMatches(
   shipmentId: string,
   actor: Actor | null,
+  sealNumber?: string | null,
 ): Promise<DriverActionResult> {
   const a = requireActor(actor);
   requireRole(a, ["DRIVER"]);
   const first = await transition(shipmentId, a, "PICKUP_VERIFICATION", "LOADED", "CARGO_VERIFIED");
   if (first.status !== "success") return first;
-  await db.chainOfCustodyEvent.create({
-    data: { shipmentId, eventType: "LOADED", actorUserId: a.userId },
-  });
+
+  const ops: Prisma.PrismaPromise<unknown>[] = [
+    db.chainOfCustodyEvent.create({
+      data: { shipmentId, eventType: "LOADED", actorUserId: a.userId },
+    }),
+  ];
+  // Sealing is optional (§ Tamper-Evident Seals: "if used") — most small
+  // shipments won't use one.
+  if (sealNumber && sealNumber.trim()) {
+    ops.push(
+      db.seal.create({
+        data: { shipmentId, sealNumber: sealNumber.trim(), status: "APPLIED" },
+      }),
+    );
+    ops.push(
+      db.chainOfCustodyEvent.create({
+        data: { shipmentId, eventType: "SEAL_APPLIED", actorUserId: a.userId },
+      }),
+    );
+  }
+  await db.$transaction(ops);
   return first;
 }
 
@@ -366,8 +393,79 @@ export async function verifyDelivery(
 export async function completeDelivery(
   shipmentId: string,
   actor: Actor | null,
+  observedSealNumber?: string | null,
 ): Promise<DriverActionResult> {
   const a = requireActor(actor);
   requireRole(a, ["DRIVER"]);
+
+  const shipment = await loadAssignedShipmentOrThrow(shipmentId, a);
+  if (!shipment) return { status: "notFound" };
+  if (shipment.status !== "DELIVERY_VERIFICATION") return { status: "invalidState" };
+
+  // A seal applied at pickup (confirmCargoMatches) must be verified here —
+  // "if used" (§ Tamper-Evident Seals), so most shipments skip this
+  // entirely. The seal check is a gate on completion, not a separate
+  // driver-facing stage in the state machine.
+  const activeSeal = await db.seal.findFirst({
+    where: { shipmentId, status: "APPLIED" },
+    orderBy: { appliedAt: "desc" },
+  });
+
+  if (activeSeal) {
+    if (!observedSealNumber || !observedSealNumber.trim()) {
+      return { status: "sealNumberRequired" };
+    }
+    const matches = observedSealNumber.trim() === activeSeal.sealNumber;
+
+    if (!matches) {
+      // Fail safe: a seal mismatch NEVER completes delivery normally —
+      // it raises an incident instead (§ Tamper-Evident Seals: "DO NOT
+      // silently mark shipment delivered normally. Trigger incident
+      // workflow.").
+      await db.$transaction([
+        db.seal.update({
+          where: { id: activeSeal.id },
+          data: { status: "VERIFIED_MISMATCH", verifiedAt: new Date() },
+        }),
+        db.chainOfCustodyEvent.create({
+          data: {
+            shipmentId,
+            eventType: "SEAL_VERIFIED",
+            actorUserId: a.userId,
+            metadata: { result: "mismatch", expected: activeSeal.sealNumber },
+          },
+        }),
+        db.incident.create({
+          data: {
+            shipmentId,
+            driverId: a.driverProfileId,
+            description: `Seal mismatch at delivery: expected "${activeSeal.sealNumber}", observed "${observedSealNumber.trim()}".`,
+          },
+        }),
+        db.shipment.update({ where: { id: shipmentId }, data: { status: "INCIDENT_REPORTED" } }),
+        db.shipmentStatusEvent.create({
+          data: {
+            shipmentId,
+            fromStatus: "DELIVERY_VERIFICATION",
+            toStatus: "INCIDENT_REPORTED",
+            actorUserId: a.userId,
+            metadata: { reason: "seal_mismatch" },
+          },
+        }),
+      ]);
+      return { status: "sealMismatch" };
+    }
+
+    await db.$transaction([
+      db.seal.update({
+        where: { id: activeSeal.id },
+        data: { status: "VERIFIED_MATCH", verifiedAt: new Date() },
+      }),
+      db.chainOfCustodyEvent.create({
+        data: { shipmentId, eventType: "SEAL_VERIFIED", actorUserId: a.userId, metadata: { result: "match" } },
+      }),
+    ]);
+  }
+
   return transition(shipmentId, a, "DELIVERY_VERIFICATION", "DELIVERED", "DELIVERED");
 }

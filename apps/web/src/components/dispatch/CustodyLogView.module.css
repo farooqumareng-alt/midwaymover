@@ -1,0 +1,157 @@
+.page {
+  min-height: 100dvh;
+  background: var(--off-white);
+}
+
+.header {
+  background: var(--navy);
+  color: var(--fg-light);
+  padding: 28px 0;
+}
+
+.backLink {
+  color: var(--fg-light);
+  opacity: 0.75;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  opacity: 1;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+.subtitle {
+  font-size: 13px;
+  opacity: 0.75;
+  margin-top: 4px;
+}
+
+.main {
+  padding: 32px 0 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--hairline-light);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cardRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.cardLabel {
+  color: var(--muted-on-light);
+}
+
+.cardValue {
+  font-weight: 600;
+}
+
+.description {
+  font-size: 14px;
+  color: var(--muted-on-light);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--hairline-light);
+}
+
+.badgeWarn {
+  background: #f4d9c9;
+  color: #7a3418;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #fff;
+  border: 1px solid var(--hairline-light);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.timelineRow {
+  display: grid;
+  grid-template-columns: 180px 1fr auto;
+  gap: 16px;
+  padding: 10px 16px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--hairline-light);
+}
+
+.timelineRow:last-child {
+  border-bottom: none;
+}
+
+.timestamp {
+  color: var(--muted-on-light);
+  white-space: nowrap;
+}
+
+.eventType {
+  font-weight: 600;
+}
+
+.actor {
+  color: var(--muted-on-light);
+  text-align: right;
+}
+
+.empty {
+  padding: 16px;
+  color: var(--muted-on-light);
+  font-size: 14px;
+}
+
+.correctionForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 520px;
+}
+
+.textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--hairline-light);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+}

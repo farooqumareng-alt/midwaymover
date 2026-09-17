@@ -37,16 +37,41 @@ Maps/SMS/email/storage providers are still candidates, not locked — confirm
 with the project owner before wiring credentials (spec §M).
 
 ## Current phase
-**Phase 6 — Driver PWA — core done.** Phases 1 (DB), 3 (auth), 4
-(booking), 5 (tracking), the Phase 8 minimal dispatch slice, and now
-Phase 6 are complete. Phase 2 (design system) was skipped — the marketing
-homepage and booking flow already established the visual language. Live
-in production: homepage, magic-link/staff auth, the 3-step booking flow,
-and public tracking. Dispatch/driver surfaces (`/dispatch`,
-`/staff/login`, `/driver`) are deployed but **have no real staff accounts
-on production** — seeding fake admin/driver credentials onto the live
-site wasn't worth the standing risk when no real staff exist yet; both
-are fully verified locally instead (see below).
+**Phase 7 — Chain of custody — core done.** Phases 1 (DB), 3 (auth), 4
+(booking), 5 (tracking), the Phase 8 minimal dispatch slice, 6 (driver
+PWA), and now 7 are complete. Phase 2 (design system) was skipped — the
+marketing homepage and booking flow already established the visual
+language. Live in production: homepage, magic-link/staff auth, the
+3-step booking flow, and public tracking. Dispatch/driver surfaces
+(`/dispatch`, `/staff/login`, `/driver`) are deployed but **have no real
+staff accounts on production** — seeding fake admin/driver credentials
+onto the live site wasn't worth the standing risk when no real staff
+exist yet; both are fully verified locally instead (see below).
+
+Chain of custody: tamper-evident seals close the gap Phase 6 left open.
+`confirmCargoMatches()` (`apps/web/src/lib/driver.ts`) optionally records
+a `Seal` (status `APPLIED`) plus a `SEAL_APPLIED` custody event when the
+driver enters a seal number at pickup. `completeDelivery()` requires the
+observed seal number back before it will complete a shipment that has one
+outstanding — a second-step flow (`sealNumberRequired` → resubmit),
+mirrored in `DriverJobWorkflow.tsx`'s `CompleteDeliveryAction`. A mismatch
+never completes the delivery: it marks the seal `VERIFIED_MISMATCH`,
+opens an OPEN `Incident`, and moves the shipment to `INCIDENT_REPORTED` —
+fail-closed, same as every other verification step. A match marks the
+seal `VERIFIED_MATCH` and completes normally. Dispatch gets a dedicated
+viewer at `/dispatch/shipments/[id]` (`getCustodyLog`/
+`addCustodyCorrection` in `apps/web/src/lib/dispatch.ts`): full custody-
+event and status-history timelines with the acting user's email
+(`ChainOfCustodyEvent`/`ShipmentStatusEvent` gained a real `actor`
+relation to `User` this phase — they previously only had a bare
+`actorUserId` scalar), plus seals and incidents. Corrections are
+append-only — `addCustodyCorrection` always inserts a new `CORRECTION`
+event, never edits an earlier one. Reachable from `/dispatch` via a "View
+chain of custody" link on attention-list shipments, or a lookup-by-ID box
+for shipments already assigned/in-transit/delivered (which don't appear
+in the attention list). Scope boundary flagged, not faked: no GPS/location
+cross-check on driver-attested actions — still deferred, no location
+provider chosen (§M).
 
 Driver PWA: `/driver` (job list) → `/driver/jobs/[id]` (the 4-stage
 workflow: Accept → Verify Pickup → Transport → Verify Delivery,
@@ -59,8 +84,7 @@ than faked: PIN verification only (no QR/signature — no object storage
 exists yet for a captured image, §M not chosen) and no POD row created on
 delivery (same storage gap — a real document/photo record is Phase 11
 scope). No customer notification or billing trigger on delivery either
-(Phase 10/9 don't exist yet). No GPS cross-check on "arrived" actions —
-driver-attested only, deferred to Phase 7.
+(Phase 10/9 don't exist yet).
 
 Pickup/delivery verification codes are generated in `confirmBooking()`
 (`apps/web/src/lib/booking.ts`) and shown ONCE on the booking success
@@ -127,7 +151,7 @@ get the current caller's identity server-side — never trust a
 client-supplied id.
 
 Real HTTP round-trip tested against a running dev server (not just
-typechecked) for every phase so far — see the Phase 3/4/5/8/6 commit
+typechecked) for every phase so far — see the Phase 3/4/5/8/6/7 commit
 messages for the full list. For the driver PWA specifically: booked a
 real shipment, captured its real pickup/delivery codes from the booking
 response, ran the complete 8-action lifecycle as a real logged-in driver
@@ -140,7 +164,28 @@ live: actions rejected once a shipment moves past their stage, and — with
 a genuine second driver account — that driver B cannot see, open, or act
 on driver A's assigned job (404 at both the API and the page).
 
-See `docs/PHASE-0-SPECIFICATION.md` and `docs/DEV-SETUP.md`. Phase 7
-(chain of custody) is next — most of its data model already exists and is
-being written to; what's missing is a dedicated view of it (e.g. for
-dispatch/customer) and any real-time/GPS layer.
+For chain of custody specifically: booked two real shipments, assigned
+the same real driver to both via real dispatch HTTP calls, and ran each
+through the full pickup-to-delivery lifecycle as that driver. Shipment A
+applied a seal at cargo confirmation and completed with the matching seal
+number — verified `DELIVERED` status and a `VERIFIED_MATCH` seal row.
+Shipment B applied a seal, then completed with a deliberately wrong
+observed seal number — verified the request was rejected (409, incident
+mentioned in the message), the seal row shows `VERIFIED_MISMATCH`, an
+OPEN `Incident` exists describing the mismatch, the shipment sits at
+`INCIDENT_REPORTED` (never `DELIVERED`), and a retry with the *correct*
+seal still doesn't silently complete it. Also verified the "seal number
+required" intermediate step before a seal-bearing shipment can complete.
+For the custody log view: confirmed an unauthenticated request and a
+logged-in driver both get redirected away from
+`/dispatch/shipments/[id]` while a real MFA-verified admin session can
+open it and see the actual event/actor/status data; confirmed the
+correction API rejects unauthenticated (401) and driver (403) callers,
+and that a real admin's correction is persisted as a new append-only
+`CORRECTION` event without touching the original events. All test
+shipments/staff accounts were deleted from local dev Postgres afterward.
+
+See `docs/PHASE-0-SPECIFICATION.md` and `docs/DEV-SETUP.md`. Phase 9
+(Stripe payments) or Phase 11 (POD/documents) are reasonable candidates
+next — Phase 9 unblocks real payment confirmation (replacing the manual
+override), Phase 11 unblocks real signature/photo capture.

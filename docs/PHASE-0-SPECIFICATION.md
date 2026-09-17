@@ -463,8 +463,8 @@ Phase 1 (database design) may now proceed on this document.
 | 3 | Authentication + authorization | **Core done** — `apps/web/src/auth.ts`, `src/lib/staff-auth.ts`, `src/lib/mfa-enrollment.ts`, `packages/core` |
 | 4 | Customer booking | **Core done** — `/book`, `apps/web/src/lib/booking.ts`, `packages/core` (vehicle-matching/pricing/distance) |
 | 5 | Customer tracking | **Core done** — `/track/[token]`, `apps/web/src/lib/tracking.ts` |
-| 6 | Driver workflow | **Core done** — `/driver`, `/driver/jobs/[id]`, `apps/web/src/lib/driver.ts`. PIN verification only (no QR/signature — no object storage chosen yet); no POD row created (same gap, Phase 11); no GPS cross-check (Phase 7) |
-| 7 | Chain of custody | Not started |
+| 6 | Driver workflow | **Core done** — `/driver`, `/driver/jobs/[id]`, `apps/web/src/lib/driver.ts`. PIN verification only (no QR/signature — no object storage chosen yet); no POD row created (same gap, Phase 11); no GPS cross-check (Phase 7 added tamper-evident seals but not GPS) |
+| 7 | Chain of custody | **Core done** — tamper-evident seal capture at cargo confirmation (`confirmCargoMatches`) and comparison at delivery (`completeDelivery`), both in `apps/web/src/lib/driver.ts`; a seal mismatch fails closed into an OPEN `Incident` + `INCIDENT_REPORTED` status, never a silent delivery. Dispatch-only viewer at `/dispatch/shipments/[id]` (`apps/web/src/lib/dispatch.ts`'s `getCustodyLog`/`addCustodyCorrection`) shows the full custody-event and status-history timeline plus seals/incidents, and supports append-only corrections. No GPS/location cross-check on driver-attested actions — still deferred, no location provider chosen |
 | 8 | Dispatch | **Minimal slice done, pulled ahead of Phase 6** — `/dispatch`, `apps/web/src/lib/dispatch.ts` (payment override, driver assignment, fleet review). Full command center (live map, exceptions UI, customer/vehicle CRUD) still not started |
 | 9 | Payments | Not started |
 | 10 | Notifications | Not started |
