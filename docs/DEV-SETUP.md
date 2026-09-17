@@ -102,15 +102,32 @@ should also work):
 | `AUTH_SECRET` | Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Never reuse the local dev value. |
 | `MFA_ENCRYPTION_KEY` | Same generation command. Never reuse the local dev value — rotating it would make every enrolled staff account's stored TOTP secret unrecoverable, so treat it as a real secret from day one. |
 
-**Applying migrations to Supabase** — not run automatically on every
-Vercel build (a deliberate choice; auto-running `migrate deploy` on every
-deploy is a real option to revisit, but wasn't chosen silently). Run
-manually when there's a new migration to ship:
+**Applying migrations to Supabase** — run automatically as part of the
+Vercel build (root `package.json`'s `build` script runs `prisma generate`,
+then `packages/db/scripts/migrate-deploy-safe.mjs`, then `next build`).
+Chosen over the earlier "run it manually before every deploy" approach
+(Phase 7) once that started meaning "paste the Supabase DIRECT connection
+string into a terminal on every schema change" — Vercel's build
+environment already has it as a Secret env var, so there's no reason a
+human needs to hold it too.
+
+The wrapper script (not a bare `prisma migrate deploy` in the build
+script) exists because `DATABASE_URL`/`DIRECT_DATABASE_URL` are
+Production-only env vars — a Preview deployment has neither set, and a
+bare `migrate deploy` with no configured datasource URL fails hard, which
+would break every preview build. The wrapper skips (loud log line, exit
+0) when neither var is present; when one is (local dev, or Vercel
+Production), it runs the real `prisma migrate deploy` and fails the build
+if that fails — a failed migration failing the build once a DB
+connection exists is the correct fail-closed behavior, same as
+everywhere else in this app.
+
+`prisma migrate deploy` specifically (never `migrate dev` — `dev` can
+generate a new migration or prompt interactively, neither of which
+belongs in an automated production build). If a migration ever needs to
+be run manually instead (e.g. investigating a stuck production DB
+outside the normal deploy flow):
 
 ```
 DIRECT_DATABASE_URL="<supabase direct connection string>" npm run migrate:deploy --workspace packages/db
 ```
-
-(`prisma migrate deploy`, not `migrate dev` — `dev` can generate a new
-migration or prompt interactively, neither of which belongs in a
-production deploy.)
