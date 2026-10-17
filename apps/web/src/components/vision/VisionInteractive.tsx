@@ -3,7 +3,9 @@
 import { useState } from "react";
 import styles from "./vision.module.css";
 
-const ROADMAP: Record<string, { era: string; body: string; list: string[] }> = {
+type RoadYear = "1" | "5" | "10" | "25" | "50" | "100";
+
+const ROADMAP: Record<RoadYear, { era: string; body: string; list: string[] }> = {
   "1": {
     era: "2026–27 · Prove it in DFW",
     body: "One cargo van, two drivers, one metroplex. The goal is to prove the model on real roads: every load dedicated, every delivery documented — and the first repeat business accounts earned rather than bought.",
@@ -58,10 +60,10 @@ const ROADMAP: Record<string, { era: string; body: string; list: string[] }> = {
   },
 };
 
-const YEARS = ["1", "5", "10", "25", "50", "100"];
+const YEARS: RoadYear[] = ["1", "5", "10", "25", "50", "100"];
 
 export function VisionRoadmap() {
-  const [year, setYear] = useState("1");
+  const [year, setYear] = useState<RoadYear>("1");
   const r = ROADMAP[year];
   return (
     <div className={styles.roadmap}>
