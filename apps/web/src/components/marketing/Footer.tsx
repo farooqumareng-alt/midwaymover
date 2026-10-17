@@ -11,7 +11,7 @@ export function Footer() {
         <div className={styles.links}>
           <a href="#">Privacy</a>
           <a href="#">Terms</a>
-          <a href="#">Contact</a>
+          <a href="/book">Contact</a>
         </div>
       </div>
     </footer>
