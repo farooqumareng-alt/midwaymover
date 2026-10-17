@@ -32,12 +32,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         strategy="afterInteractive"
       />
       <Script id="google-analytics" strategy="afterInteractive">
-        {`
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag(jsx, new Date());
-          gtag(config, ${GA_MEASUREMENT_ID});
-        `}
+        {`window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag("js", new Date());gtag("config", "${GA_MEASUREMENT_ID}");`}
       </Script>
     </html>
   );
