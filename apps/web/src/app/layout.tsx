@@ -19,9 +19,9 @@ const ibmPlexSans = IBM_Plex_Sans({
 const GA_MEASUREMENT_ID = "G-VX4SY2N0X7";
 
 export const metadata: Metadata = {
-  title: "Midway Mover",
+  title: "Midway Mover | Dedicated Cargo Van Delivery in Dallas–Fort Worth",
   description:
-    "Private, dedicated small and mid-size load transportation. Private. Dedicated. Direct. Secure. Confidential.",
+    "DFW private cargo delivery: one load, one dedicated van, no consolidation. Boxes, pallets & equipment moved direct with photo proof of delivery. Book in 3 steps.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
