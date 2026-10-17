@@ -12,7 +12,7 @@ export function BusinessAccounts() {
           Business accounts let your team book, track, and manage shipments
           together, with one invoice for the organization.
         </p>
-        <a href="#" className="btnGhostLight" style={{ marginTop: 4 }}>
+        <a href="/book" className="btnGhostLight" style={{ marginTop: 4 }}>
           Talk to us about business accounts
         </a>
       </div>

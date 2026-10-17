@@ -9,9 +9,9 @@ export function Footer() {
           <span className={styles.domain}>midwaymover.com</span>
         </div>
         <div className={styles.links}>
-          <a href="#">Privacy</a>
-          <a href="#">Terms</a>
-          <a href="#">Contact</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/book">Contact</a>
         </div>
       </div>
     </footer>
