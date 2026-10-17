@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { href: "#how-it-works", label: "How It Works" },
   { href: "#business", label: "Business" },
   { href: "#security", label: "Security" },
+  { href: "/vision", label: "Vision" },
 ];
 
 export function Header() {
