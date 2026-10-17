@@ -1,3 +1,4 @@
+{/* deploy-trigger: re-run Vercel build */}
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { IBM_Plex_Sans } from "next/font/google";
